@@ -3,15 +3,15 @@
 import PackageDescription
 
 let package = Package(
-  name: "KarnakSwiftUI",
+  name: "Karnak",
   platforms: [.iOS(.v16)],
   products: [
-    .library(name: "KarnakSwiftUI", targets: ["KarnakSwiftUI"]),
-    .library(name: "KarnakDataHttp", targets: ["KarnakDataHttp"]),
+    .library(name: "Karnak", targets: ["Karnak"]),
     .library(name: "KarnakNavigation", targets: ["KarnakNavigation"]),
   ],
   targets: [
-    .binaryTarget(name: "KarnakCore", url: "https://github.com/EgyGeeks/karnak-swift/releases/download/0.1.0-alpha.1/KarnakCore.xcframework.zip", checksum: "819bf918447b03d9ec74bd9c1e6d1091836aad99b2f5572ee364c5708ae3f16f"),
+    .binaryTarget(name: "KarnakCore", url: "https://github.com/EgyGeeks/karnak-swift/releases/download/0.1.0-alpha.2/KarnakCore.xcframework.zip", checksum: "a56470a35d3c7fbef97fecea61a4d85e93fd159a1c730e8c01a5875bc9500d79"),
+    .target(name: "Karnak", dependencies: ["KarnakCore", "KarnakSwiftUI", "KarnakDataHttp"]),
     .target(name: "KarnakSwiftUI", dependencies: ["KarnakCore"]),
     .target(name: "KarnakDataHttp", dependencies: ["KarnakCore", "KarnakSwiftUI"]),
     .target(name: "KarnakNavigation", dependencies: ["KarnakCore", "KarnakSwiftUI"]),
