@@ -2,7 +2,7 @@
 
 The SwiftPM distribution of the SDK, generated for each release from the SDK's source repository. It holds the Swift
 sources and `Package.swift`; the XCFramework is a release asset that `Package.swift` names with its checksum.
-iOS 16 or later. Licensed under Apache-2.0.
+iOS 16 or later. Licensed under [PolyForm Noncommercial 1.0.0](LICENSE) (`PolyForm-Noncommercial-1.0.0`), copyright Mohamed Rohyme. Commercial use needs a separate written licence from Mohamed Rohyme. Versions up to and including 0.1.0-alpha.2 were published under Apache-2.0 and keep that licence.
 
 This XCFramework is unsigned. Its integrity is pinned by the SHA-256 checksum in Package.swift.
 
