@@ -22,6 +22,7 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   private let log: @Sendable (String) -> Void
   let resourcesCore: ResourcesCore
   let stacks = HostStackRegistry()
+  private let signedInState = SignedInState()
   /// The loading and error views the app registered with ``KarnakConfiguration/screenStates(_:)``.
   let screenStates: ScreenStatesRegistry
   /// The installed flows module (`KarnakFlows`), or nil when the app didn't add one.
@@ -83,6 +84,7 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     config.clientEventsEnabled = configuration.clientEvents.enabled
     config.clientEventsSampleRate = configuration.clientEvents.sampleRate
     config.listener = configuration.listener.map(ListenerBridge.init)
+    config.contextProvider = signedInState
     for module in configuration.modules { module.install(into: config) }
     flowModule =
       configuration.modules.lazy.compactMap { ($0 as? KarnakFlowModule)?.navigationModule }
@@ -120,6 +122,13 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   /// previous user's cached screens. Misuse, such as a blank id, throws in debug.
   public func setUser(id: String, attributes: [String: Any] = [:]) throws {
     try client.setUser(id: id, attributeValues: converter.convert(attributes))
+  }
+
+  /// Says whether the user is signed in, for the `context.signedIn` binding (`docs/protocol.md`,
+  /// Context): `true`, `false`, or `nil` when the app does not say. A change reloads the sources
+  /// of the open screens that read it. It carries no credential, and is separate from ``setUser(id:attributes:)``.
+  public func setSignedIn(_ signedIn: Bool?) {
+    signedInState.set(value: signedIn.map { KotlinBoolean(bool: $0) })
   }
 
   /// Signs the user out: clears their cached screens and stops sending them.

@@ -37,6 +37,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   @Environment(\.karnakOpener) private var opener
   @Environment(\.karnakScreenStates) private var screenStates
   @Environment(\.karnakHostCallbacks) private var hostCallbacks
+  @Environment(\.karnakShownThemes) private var shownThemes
   @Environment(\.karnakStack) private var stackLevel
   @Environment(\.karnakScreenObserver) private var screenObserver
   @Environment(\.colorScheme) private var colorScheme
@@ -75,7 +76,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
     // A result builder allows a declaration here, not a bare call.
     // swiftlint:disable:next redundant_discardable_let
     let _ = model.updateHostCallbacks(
-      hostCallbacks.withDefault(navigation: stackLevel.map(Self.navigationTarget)),
+      hostCallbacks.withDefault(navigation: stackLevel.map(karnakNavigationTarget)),
       onFinish: onFinish)
     ZStack {
       phaseView
@@ -94,13 +95,17 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
           if loading == nil { screenStates.reportFallback(screenId) }
         }
         .task(
-          id: EnvironmentKey(
+          id: ScreenEnvironmentKey(
             colorScheme: colorScheme, layoutDirection: layoutDirection,
             reach: environment.sizeReach.reachableHeader, sizeClass: environment.sizeClass.wire)
         ) {
           model.setEnvironment(environment)
         }
-        .onAppear { model.setShown(true) }
+        .onAppear {
+          // Only a full screen is the shown screen; a section is a part of a native one.
+          model.reportsTheme(into: fillsSpace ? shownThemes : nil)
+          model.setShown(true)
+        }
         // A hidden screen only leaves the foreground; `lifetime` stops it when the view is gone.
         .onDisappear {
           if closesWhenHidden && !keepsOpenWhenCovered {
@@ -117,11 +122,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   }
 
   /// Whether an entry of the host stack lies above the screen, as the stack changes.
-  private var coverage: AnyPublisher<Bool, Never> {
-    guard let level = stackLevel else { return Empty().eraseToAnyPublisher() }
-    return level.stack.$entries.map { $0.count > level.depth }.removeDuplicates()
-      .eraseToAnyPublisher()
-  }
+  private var coverage: AnyPublisher<Bool, Never> { stackCoverage(stackLevel) }
 
   /// The entry the screen opens as: the one it was given, or its own when its caller waits for
   /// an outcome. Either hears the outcome through `onFinish`.
@@ -140,26 +141,11 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
     return stackLevel.map { $0.stack.isCovered(at: $0.depth) } ?? false
   }
 
-  private static func navigationTarget(_ level: KarnakStackLevel) -> (KarnakNavigation) -> Void {
-    { request in MainActor.assumeIsolated { level.stack.perform(request) } }
+  private var phaseView: some View {
+    ScreenPhaseView(
+      model: model, screenId: screenId, fillsSpace: fillsSpace, loading: loading, failure: failure,
+      sdkViews: sdkViews)
   }
-
-  @ViewBuilder private var phaseView: some View {
-    switch model.phase {
-    case .loading: views.loading(of: screenId, callSite: loading)
-    case .content(let screen):
-      ResolvedScreenView(
-        screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
-        measuresViewport: true, fillsSpace: fillsSpace
-      )
-      .environment(\.karnakRowAnchors, model.gate.anchors)
-      .background { ScrollProbe { model.gate.scroll = $0 } }
-    case .failed(let error):
-      views.error(of: screenId, error, retry: { model.retry() }, callSite: failure)
-    }
-  }
-
-  private var views: ScreenStateViews { ScreenStateViews(registry: screenStates, sdk: sdkViews) }
 
   /// The environment for a container `width` points wide on this device.
   private func screenEnvironment(width: Double) -> ScreenEnvironment {
@@ -168,7 +154,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   }
 }
 
-private struct EnvironmentKey: Equatable {
+struct ScreenEnvironmentKey: Equatable {
   let colorScheme: ColorScheme
   let layoutDirection: LayoutDirection
   let reach: String

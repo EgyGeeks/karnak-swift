@@ -105,7 +105,8 @@ public struct KarnakFlow<Loading: View>: View {
     switch model.phase {
     case .loading:
       ScreenStateViews(registry: screenStates, sdk: .screen).loading(of: nil, callSite: loading)
-    case .running(let overlay): ContainedStackView(overlay: overlay, fillsSpace: true)
+    case .running(let overlay):
+      ContainedStackView(overlay: overlay, fillsSpace: true, reportsTheme: true)
     case .ended: Color.clear
     }
   }

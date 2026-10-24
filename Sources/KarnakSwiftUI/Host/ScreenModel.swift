@@ -18,7 +18,7 @@ enum ScreenPhase {
 @MainActor
 final class ScreenModel: ObservableObject {
   /// What to draw. It keeps the last content while the same screen loads again.
-  @Published private(set) var phase = ScreenPhase.loading
+  @Published private(set) var phase = ScreenPhase.loading { didSet { reportTheme() } }
 
   /// The effects the open screen asks to present.
   let effects: EffectModel
@@ -44,8 +44,11 @@ final class ScreenModel: ObservableObject {
     didSet {
       if presence.isForeground != oldValue.isForeground { reportForeground() }
       effects.setVisible(presence.shown && !presence.covered)
+      reportTheme()
     }
   }
+  /// Tells the host which theme the screen shows while it is on screen (``KarnakShownThemes``).
+  private let themeReport = ShownThemeReport()
   /// The entry the screen is, when it has one, and the id the model reports as removed when the
   /// screen is gone (its own entries only).
   private var entry: ScreenEntry?
@@ -201,6 +204,19 @@ final class ScreenModel: ObservableObject {
     session?.appear(handle)
   }
 
+  /// Reports the theme of the content to `themes` while the screen is on screen, uncovered: a full
+  /// screen passes the host's registry, a section or a sheet passes `nil` and reports nothing.
+  func reportsTheme(into themes: KarnakShownThemes?) {
+    themeReport.use(themes)
+    reportTheme()
+  }
+
+  private func reportTheme() {
+    var theme: ScreenTheme?
+    if case .content(let screen) = phase { theme = screen.theme }
+    themeReport.update(theme: theme, shown: presence.shown && !presence.covered)
+  }
+
   /// Answers the screen's host actions with `callbacks` from now on.
   func updateHostCallbacks(
     _ callbacks: KarnakHostCallbacks,
@@ -224,6 +240,7 @@ final class ScreenModel: ObservableObject {
     stopObservingEffects = nil
     session = nil
     closer.action = nil
+    themeReport.clear()
     if reportsRemoval, let id = entry?.id { opener?.entryRemoved(id) }
   }
 

@@ -54,8 +54,7 @@ public struct KarnakDataAdapter: Sendable {
 
 extension KarnakConfiguration {
   /// Registers the data adapter `name` (nonblank, without `,` or whitespace): the name the
-  /// server's `adapter` source uses, announced to the server so it only sends sources this app
-  /// can run. A bad or repeated name throws when the client is created in debug and is logged and
+  /// server's `adapter` source uses. A bad or repeated name throws when the client is created in debug and is logged and
   /// ignored in release. `make` builds the stream for each start of the adapter, given the
   /// request params the source names.
   public mutating func dataAdapter<S: AsyncSequence>(

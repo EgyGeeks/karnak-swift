@@ -21,6 +21,9 @@ public struct KarnakScreenError: Error, Equatable, Sendable {
     /// boundary with `onError: "screen"`, ADR 0026) failed with nothing to show. Retrying reloads
     /// only the sources that failed.
     case data
+    /// The server refused the params the app opened the screen with (`params_invalid`, ADR 0028, D8): a required param
+    /// is missing or of the wrong type. A mistake in the app's own code; retrying the same params fails again.
+    case params
     /// The screen source failed without saying why, or the error is of a kind this SDK doesn't know.
     case source
   }
@@ -51,6 +54,7 @@ extension KarnakScreenError.Kind {
     case .server: self = .server
     case .invalidresponse: self = .invalidResponse
     case .data: self = .data
+    case .params: self = .params
     default: self = .source
     }
   }

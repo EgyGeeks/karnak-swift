@@ -1,7 +1,6 @@
 import Foundation
 import KarnakCore
 import SwiftUI
-import UIKit
 
 /// The Kotlin resources behind ``KarnakSwiftResources``, with Swift's shapes: `[String: Any]` args,
 /// dynamic colors and an `AsyncStream`. `resources` is `nil` for the value outside `.karnakHost`.
@@ -80,32 +79,8 @@ final class ResourcesCore: @unchecked Sendable {
   }
 
   func color(_ name: String, theme: String?) -> Color? {
-    guard let resources,
-      let known = argb(resources, name, .light, theme) ?? argb(resources, name, .dark, theme)
-    else { return nil }
-    return Color(
-      uiColor: UIColor { [self] traits in
-        let dark = traits.userInterfaceStyle == .dark
-        let mode: ColorMode = dark ? .dark : .light
-        let other: ColorMode = dark ? .light : .dark
-        // Read when SwiftUI resolves the color, so a newer theme and the other appearance apply.
-        let value =
-          argb(resources, name, mode, theme) ?? argb(resources, name, other, theme) ?? known
-        return uiColor(value)
-      })
-  }
-
-  private func argb(
-    _ resources: KarnakCore.KarnakResources, _ name: String, _ mode: ColorMode, _ theme: String?
-  ) -> Argb? {
-    resources.color(name: name, mode: mode, theme: theme)
-  }
-
-  private func uiColor(_ color: Argb) -> UIColor {
-    let bits = UInt32(bitPattern: color.value)
-    return UIColor(
-      red: CGFloat((bits >> 16) & 0xFF) / 255, green: CGFloat((bits >> 8) & 0xFF) / 255,
-      blue: CGFloat(bits & 0xFF) / 255, alpha: CGFloat(bits >> 24) / 255)
+    guard let resources else { return nil }
+    return DynamicColor.make { resources.color(name: name, mode: $0, theme: theme) }
   }
 
   /// The updates after the content there is now, or, with `sinceFirstUse`, after the content the

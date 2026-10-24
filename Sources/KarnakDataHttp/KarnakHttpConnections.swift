@@ -13,7 +13,7 @@ import KarnakSwiftUI
 ///
 /// An invalid connection, or a name registered twice, is developer misuse: the client's
 /// initializer throws in debug, and in release it is logged and ignored. An app that doesn't add
-/// the module announces no connection (`X-Karnak-Sources`) and runs no `http` source.
+/// the module runs no `http` source: a source that names a connection fails on the device under its policy.
 public struct KarnakHttpConnections: KarnakClientModule {
   public let connections: [KarnakHttpConnection]
 

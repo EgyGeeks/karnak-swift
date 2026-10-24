@@ -36,7 +36,7 @@ public struct KarnakHttpConnection: Sendable {
   /// Whether the API is on a private network, so private addresses and `http` are allowed.
   public var isInternal = false
   /// Marks an app-wide key rather than the user's token: a secret connection is never executed on
-  /// the device, never announced, and its sources are skipped.
+  /// the device and its sources are skipped.
   public var isSecret = false
   /// Whether sources may run now, read for every request: switch the connection off from your own
   /// remote config. Default: always on.
