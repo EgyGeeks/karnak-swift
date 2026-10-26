@@ -15,6 +15,18 @@ public enum KarnakPresentation: String, Sendable {
   case sheet
 }
 
+/// Who draws the screens that open as a `modal` or a `sheet`, for an app with its own router
+/// (`docs/protocol.md`, Presentation). `push`, `replace` and `reset` are the host stack's either way.
+public enum KarnakOverlays: Sendable {
+  /// The SDK draws them: a contained stack in a full-screen cover or a sheet, with its own back
+  /// handling. This holds for a screen your own router drew too, so `onNavigation` hears only
+  /// requests for your stack. The default.
+  case sdk
+  /// You draw them: `onNavigation` gets the `open_screen` with its presentation, and your app shows
+  /// the screen as a cover or sheet of its own, or pushes it.
+  case host
+}
+
 /// What a ``KarnakNavigation/open(entryId:target:params:presentation:)`` shows.
 public enum KarnakNavigationTarget: Equatable, Sendable {
   /// A Karnak screen, by id.
@@ -28,14 +40,14 @@ public enum KarnakNavigationTarget: Equatable, Sendable {
 }
 
 /// What the SDK asks the host's navigation to do (`docs/integration.md`, Navigation): the
-/// request ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:)``
+/// request ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)``
 /// hands to `onNavigation`. Perform it on the stack you own, and report every entry that stack
 /// drops with ``KarnakSwiftNavigator/entryRemoved(_:)``.
 public enum KarnakNavigation {
   /// Shows `target` as the entry `entryId`: open a screen with `KarnakScreen(_:params:entryId:)` or
   /// `KarnakViewController(client:screenId:params:entryId:)`, which pass the id on, and a native
-  /// route with your own view. A host with no overlay may open ``KarnakPresentation/modal`` and
-  /// ``KarnakPresentation/sheet`` as a push.
+  /// route with your own view. With ``KarnakOverlays/host`` the request can be a
+  /// ``KarnakPresentation/modal`` or ``KarnakPresentation/sheet``, which you draw or open as a push.
   case open(
     entryId: String, target: KarnakNavigationTarget, params: [String: Any],
     presentation: KarnakPresentation)
@@ -86,6 +98,16 @@ extension KarnakPresentation {
     case .modal: self = .modal
     case .sheet: self = .sheet
     default: self = .push
+    }
+  }
+}
+
+extension KarnakOverlays {
+  /// The engine's form of this choice.
+  var core: KarnakCore.KarnakOverlays {
+    switch self {
+    case .sdk: .sdk
+    case .host: .host
     }
   }
 }

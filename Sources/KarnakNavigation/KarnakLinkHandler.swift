@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Opens the links of the app (`docs/links.md`; ADR 0017, D7): resolves a URI against the link
 /// table on the device, so a link works online and offline and on a cold start, and opens what it
-/// matches through the hooks of the enclosing ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:)``,
+/// matches through the hooks of the enclosing ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)``,
 /// the way the same action from a screen would.
 ///
 /// Get it from the environment, below ``SwiftUI/View/karnakLinks()`` (or

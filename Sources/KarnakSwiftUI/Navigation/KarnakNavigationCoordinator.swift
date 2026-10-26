@@ -59,7 +59,7 @@ public final class KarnakNavigationCoordinator: NSObject, UINavigationController
   public var routes:
     [String: (_ params: [String: Any], _ handle: KarnakFlowHandle?) -> UIViewController] = [:]
 
-  /// The hooks for what screens ask the app to do, as for ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:)``.
+  /// The hooks for what screens ask the app to do, as for ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)``.
   /// `onDismiss` is also what a `back` with nothing left to pop calls.
   public struct Hooks {
     var onNavigate: ((_ route: String, _ params: [String: Any]) -> Void)?

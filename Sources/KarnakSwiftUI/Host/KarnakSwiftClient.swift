@@ -69,6 +69,7 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     config.debug = configuration.debug
     config.acceptLanguage = configuration.acceptLanguage
     config.liveUpdates = configuration.liveUpdates
+    config.syncWait = Self.milliseconds(of: configuration.syncWait)
     config.bundledResources = configuration.bundledResources
     config.routeManifest = configuration.routeManifest
     config.routeManifestJson = configuration.routeManifestJson
@@ -79,6 +80,9 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     for registered in configuration.dataAdapters {
       config.dataAdapter(name: registered.name, adapter: DataAdapterBridge(registered.adapter))
     }
+    config.register(
+      customActions: configuration.customActions, screens: configuration.screenCustomActions,
+      log: log)
     for (name, value) in configuration.headers { config.setHeader(name: name, value: value) }
     configuration.headerProvider.map { provider in config.addHeaderProvider(provider: provider) }
     config.clientEventsEnabled = configuration.clientEvents.enabled
@@ -134,6 +138,13 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   /// Signs the user out: clears their cached screens and stops sending them.
   public func clearUser() {
     client.clearUser()
+  }
+
+  /// `seconds` as the whole milliseconds the Kotlin client takes. A wait that is not a finite number
+  /// passes as one the client refuses, so it throws like a negative one instead of trapping here.
+  private static func milliseconds(of seconds: TimeInterval) -> Int64 {
+    let milliseconds = (seconds * 1000).rounded()
+    return Int64(exactly: milliseconds) ?? (milliseconds > 0 ? Int64.max : -1)
   }
 
   private var converter: KarnakParamsConverter {

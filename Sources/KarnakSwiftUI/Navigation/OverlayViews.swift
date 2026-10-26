@@ -11,12 +11,12 @@ struct OverlayPresentation: View {
   var body: some View {
     Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
       .sheet(item: overlay(.sheet)) { presented in
-        ContainedStackView(overlay: presented, fillsSpace: false, reportsTheme: false)
+        ContainedStackView(overlay: presented, fillsSpace: false)
           .presentationDetents([.medium, .large])
           .presentationDragIndicator(.visible)
       }
       .fullScreenCover(item: overlay(.modal)) { presented in
-        ContainedStackView(overlay: presented, fillsSpace: true, reportsTheme: false)
+        ContainedStackView(overlay: presented, fillsSpace: true)
       }
   }
 
@@ -34,10 +34,6 @@ struct ContainedStackView: View {
   /// Whether the screens fill the space they are offered (a full-screen cover, a placed flow)
   /// or scroll in their own height (a sheet).
   let fillsSpace: Bool
-  /// Whether its screens are the host's shown screen (a placed flow's steps), whose theme a view
-  /// around the screens reads; an overlay's (a sheet's, a modal's) never are
-  /// (`docs/renderer-contract.md`, Theme of the shown screen).
-  let reportsTheme: Bool
 
   var body: some View {
     NavigationStack(
@@ -47,13 +43,13 @@ struct ContainedStackView: View {
     ) {
       Group {
         if let root = overlay.entries.first {
-          ContainedEntryView(entry: root, fillsSpace: fillsSpace, reportsTheme: reportsTheme)
+          ContainedEntryView(entry: root, fillsSpace: fillsSpace)
             .toolbar(.hidden, for: .navigationBar)
         }
       }
       .navigationDestination(for: String.self) { id in
         if let entry = overlay.entries.first(where: { $0.id == id }) {
-          ContainedEntryView(entry: entry, fillsSpace: fillsSpace, reportsTheme: reportsTheme)
+          ContainedEntryView(entry: entry, fillsSpace: fillsSpace)
         }
       }
     }
@@ -64,11 +60,10 @@ struct ContainedStackView: View {
 private struct ContainedEntryView: View {
   let entry: OverlayEntry
   let fillsSpace: Bool
-  let reportsTheme: Bool
 
   var body: some View {
     if let model = entry.model {
-      OverlayScreenView(model: model, fillsSpace: fillsSpace, reportsTheme: reportsTheme)
+      OverlayScreenView(model: model, fillsSpace: fillsSpace)
     } else if let route = entry.route {
       KarnakRouteEntryView(route: route)
     }
@@ -76,20 +71,13 @@ private struct ContainedEntryView: View {
 }
 
 /// The screen of one overlay entry, drawn like a top-level screen: its own states and effects.
-/// While it is on screen, a flow step reports its theme to the host (``KarnakShownThemes``); an
-/// overlay's entry does not.
 struct OverlayScreenView: View {
   @ObservedObject var model: ScreenModel
   let fillsSpace: Bool
-  var reportsTheme = false
   @Environment(\.karnakScreenStates) private var screenStates
-  @Environment(\.karnakShownThemes) private var shownThemes
 
   var body: some View {
     phaseView.presentingEffects(model.effects)
-      .onAppear { model.reportsTheme(into: reportsTheme ? shownThemes : nil) }
-      // A step a push covers, or one that is gone, is no longer the shown screen.
-      .onDisappear { model.reportsTheme(into: nil) }
   }
 
   @ViewBuilder private var phaseView: some View {

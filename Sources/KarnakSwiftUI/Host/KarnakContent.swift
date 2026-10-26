@@ -9,7 +9,8 @@ import SwiftUI
 /// KarnakContent(screenJson: try String(contentsOf: promoURL), themeJson: nil)
 /// ```
 ///
-/// `screenJson` is a screen response body and `themeJson` a theme response body. A screen that
+/// `screenJson` is a screen response body and `themeJson` the app's theme, a theme response body (a
+/// theme the screen carries is ignored; none draws the baseline theme). A screen that
 /// can't be read draws nothing and is logged; the content fills the space it is offered.
 /// Colors resolve for the environment's color scheme and layout direction.
 public struct KarnakContent: View {

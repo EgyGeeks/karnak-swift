@@ -10,7 +10,7 @@ let package = Package(
     .library(name: "KarnakNavigation", targets: ["KarnakNavigation"]),
   ],
   targets: [
-    .binaryTarget(name: "KarnakCore", url: "https://github.com/EgyGeeks/karnak-swift/releases/download/0.1.0-alpha.3/KarnakCore.xcframework.zip", checksum: "552802a73575d1c29c4e789042cb9f0a3f13b7602b0632453b1835f6b65e19c2"),
+    .binaryTarget(name: "KarnakCore", url: "https://github.com/EgyGeeks/karnak-swift/releases/download/0.1.0-alpha.4/KarnakCore.xcframework.zip", checksum: "920b1be713e844b44a1c32b4dd2cef02f7ec786a30009c56b789a7d5b4aa91f2"),
     .target(name: "Karnak", dependencies: ["KarnakCore", "KarnakSwiftUI", "KarnakDataHttp"]),
     .target(name: "KarnakSwiftUI", dependencies: ["KarnakCore"]),
     .target(name: "KarnakDataHttp", dependencies: ["KarnakCore", "KarnakSwiftUI"]),

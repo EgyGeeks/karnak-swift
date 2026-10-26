@@ -37,7 +37,6 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   @Environment(\.karnakOpener) private var opener
   @Environment(\.karnakScreenStates) private var screenStates
   @Environment(\.karnakHostCallbacks) private var hostCallbacks
-  @Environment(\.karnakShownThemes) private var shownThemes
   @Environment(\.karnakStack) private var stackLevel
   @Environment(\.karnakScreenObserver) private var screenObserver
   @Environment(\.colorScheme) private var colorScheme
@@ -102,8 +101,6 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
           model.setEnvironment(environment)
         }
         .onAppear {
-          // Only a full screen is the shown screen; a section is a part of a native one.
-          model.reportsTheme(into: fillsSpace ? shownThemes : nil)
           model.setShown(true)
         }
         // A hidden screen only leaves the foreground; `lifetime` stops it when the view is gone.

@@ -28,12 +28,12 @@ final class HostActionBridge {
   /// one, or the screen is an entry of its own and must answer its `back`.
   private var navigationWired: Bool { callbacks.onNavigation != nil || ownEntryId != nil }
 
-  /// Which hooks the engine is given: `onNavigation` and the three whose absence it reports. It reads at
-  /// once whether each is there.
+  /// Which hooks the engine is given: `onNavigation` and the three whose absence it reports, and whether the host
+  /// draws the overlays. It reads at once whether each is there.
   private var wiring: [Bool] {
     [
       navigationWired, callbacks.onNavigate != nil, callbacks.onOpenUrl != nil,
-      callbacks.onCustom != nil,
+      callbacks.onCustom != nil, callbacks.overlays == .host,
     ]
   }
 
@@ -48,7 +48,7 @@ final class HostActionBridge {
 
   /// The hooks to give the engine instance (`ScreenController.setHostActions`).
   var hostActions: HostActions {
-    let actions = engineActions
+    let actions = engineActions.withOverlays(choice: callbacks.overlays.core)
     guard navigationWired else { return actions }
     return actions.withNavigation { @Sendable [weak self] request in
       nonisolated(unsafe) let request = request
@@ -162,7 +162,7 @@ final class HostActionBridge {
 
   private func custom(_ action: HostCustomAction) {
     if let hook = callbacks.onCustom {
-      hook(action.type, action.params)
+      hook(action.type, action.payload)
     } else {
       missing(action.type, hook: "onCustom")
     }

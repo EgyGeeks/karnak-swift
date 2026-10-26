@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A full screen of server-driven UI (`docs/integration.md`, Placing Karnak): opens `id` through
-/// the client that ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:)`` provides, and
+/// the client that ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)`` provides, and
 /// shows a loading view, then the content, or an error view with a retry.
 ///
 /// ```swift

@@ -12,7 +12,7 @@ extension View {
   ///
   /// Without it, images load through the renderer's shared built-in ``URLSessionImageLoader``.
   /// It applies to ``KarnakScreen``, ``KarnakSection`` and level-1 ``KarnakContent``. Apply it once
-  /// near the root, next to ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:)``, and again
+  /// near the root, next to ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)``, and again
   /// on a sheet or cover that SwiftUI doesn't connect to the same hierarchy. A closer
   /// `karnakImageLoader` overrides a farther one. ``KarnakViewController`` takes the loader as an
   /// `init` parameter.

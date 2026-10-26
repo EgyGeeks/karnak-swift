@@ -8,8 +8,7 @@ extension Dictionary where Key == String, Value == Any {
 
   /// Reads an exact signed 32-bit integer, matching the Kotlin and web readers.
   public func int(_ key: String) -> Int? {
-    guard let number = self[key] as? NSNumber,
-      CFGetTypeID(number) != CFBooleanGetTypeID()
+    guard let number = self[key] as? NSNumber, !number.isBoolean
     else { return nil }
     let value = number.doubleValue
     guard value.isFinite, value.rounded() == value,
@@ -20,8 +19,7 @@ extension Dictionary where Key == String, Value == Any {
 
   /// Reads a boolean without accepting numeric NSNumber values.
   public func boolean(_ key: String) -> Bool? {
-    guard let number = self[key] as? NSNumber,
-      CFGetTypeID(number) == CFBooleanGetTypeID()
+    guard let number = self[key] as? NSNumber, number.isBoolean
     else { return nil }
     return number.boolValue
   }

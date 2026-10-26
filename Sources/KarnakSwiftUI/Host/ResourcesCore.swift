@@ -78,11 +78,6 @@ final class ResourcesCore: @unchecked Sendable {
     }
   }
 
-  func color(_ name: String, theme: String?) -> Color? {
-    guard let resources else { return nil }
-    return DynamicColor.make { resources.color(name: name, mode: $0, theme: theme) }
-  }
-
   /// The updates after the content there is now, or, with `sinceFirstUse`, after the content the
   /// first reader saw, so a load that ends before the observer starts is not missed.
   func updates(sinceFirstUse: Bool = false) -> AsyncStream<KarnakResourcesUpdate> {
@@ -131,19 +126,16 @@ struct ResourceContent {
   let locale: String?
   let layoutDirection: SwiftUI.LayoutDirection
   let stringsRevision: String?
-  let themeRevision: String?
 
   init(_ snapshot: KarnakResourceSnapshot?) {
     locale = snapshot?.locale
     layoutDirection = snapshot?.layoutDirection == .rtl ? .rightToLeft : .leftToRight
     stringsRevision = snapshot?.stringsRevision
-    themeRevision = snapshot?.themeRevision
   }
 
   var update: KarnakResourcesUpdate {
     KarnakResourcesUpdate(
-      locale: locale, layoutDirection: layoutDirection, stringsRevision: stringsRevision,
-      themeRevision: themeRevision)
+      locale: locale, layoutDirection: layoutDirection, stringsRevision: stringsRevision)
   }
 }
 

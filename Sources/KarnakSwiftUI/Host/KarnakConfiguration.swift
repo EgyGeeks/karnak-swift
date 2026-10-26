@@ -27,6 +27,11 @@ public struct KarnakConfiguration {
   public var acceptLanguage: String?
   /// Whether newer content replaces what an open screen shows as soon as it arrives.
   public var liveUpdates: Bool
+  /// The most a screen's first draw waits for the release sync, in seconds: the first Karnak request of a cold start
+  /// carries `X-Karnak-Sync`, and a cached screen waits for its answer, which says which cached screens are out of
+  /// date, before it draws. A screen the answer marked stale also waits at most this long for its network answer
+  /// before it draws from the cache. `1` by default; `0` turns waiting off. Not negative.
+  public var syncWait: TimeInterval
   /// Static headers every request carries. `X-Karnak-*` names belong to the SDK.
   public var headers: [String: String]
   /// Headers computed for every request, for a token that changes. It is called off the main
@@ -60,6 +65,12 @@ public struct KarnakConfiguration {
   /// The data adapters registered with `dataAdapter(_:_:)`, in order.
   var dataAdapters: [(name: String, adapter: KarnakDataAdapter)] = []
 
+  /// The custom action handlers registered with ``customAction(_:_:)``, in order.
+  var customActions: [CustomActionRegistration] = []
+
+  /// The per-screen custom action handlers registered with ``screenCustomActions(_:_:)``, in order.
+  var screenCustomActions: [(String, [CustomActionRegistration])] = []
+
   /// The loading and error views registered with ``screenStates(_:)``.
   var screenStatesFactories = ScreenStatesFactories()
 
@@ -69,6 +80,7 @@ public struct KarnakConfiguration {
     self.baseUrl = baseUrl
     debug = false
     liveUpdates = false
+    syncWait = 1
     headers = [:]
     clientEvents = KarnakClientEventsConfiguration()
     modules = []

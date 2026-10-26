@@ -6,7 +6,7 @@ extension View {
   /// ``KarnakScreen`` of the action's screen id and params, and `replace`, `reset`, `back` (also
   /// `to` and `root`) and `finish` act on the stack, with the system's swipe back. An
   /// `onOpenScreen` or `onNavigation` given to
-  /// ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:)``
+  /// ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)``
   /// wins over it.
   ///
   /// ```swift

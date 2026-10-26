@@ -2,11 +2,11 @@ import Foundation
 import KarnakCore
 import SwiftUI
 
-/// The project's strings and theme colors for your own screens, the ones that are not
+/// The project's strings for your own screens, the ones that are not
 /// server-driven (`docs/integration.md`, Resources for your own screens). Static and Karnak screens
-/// then read the same copy and colors, and a change on the platform reaches installed apps
+/// then read the same copy, and a change on the platform reaches installed apps
 /// without a release. Get it from ``KarnakSwiftClient/resources``, or in a view from
-/// `@Environment(\.karnakResources)`, which ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:)``
+/// `@Environment(\.karnakResources)`, which ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)``
 /// sets.
 ///
 /// ```swift
@@ -17,8 +17,7 @@ import SwiftUI
 ///     VStack {
 ///       Text(resources.string("cart.total", args: ["total": total]))
 ///       Button(resources.string("cart.checkout")) { checkout() }
-///         .tint(resources.color("primary"))
-///     }
+/// ///     }
 ///   }
 /// }
 ///
@@ -29,9 +28,8 @@ import SwiftUI
 ///
 /// **No main-thread I/O.** Nothing is read at construction. The first load (the cache or the
 /// bundled snapshot, ``KarnakConfiguration/bundledResources``) runs off the main thread, started by
-/// ``KarnakSwiftClient/warmUp(prefetch:)`` (with a bundle), ``ready()`` or the first ``string(_:args:)``
-/// or ``color(_:theme:)``; `.karnakHost` alone starts nothing.
-/// Until it ends, ``string(_:args:)`` returns the key and ``color(_:theme:)`` returns `nil`; the
+/// ``KarnakSwiftClient/warmUp(prefetch:)`` (with a bundle), ``ready()`` or the first ``string(_:args:)``.
+/// Until it ends, ``string(_:args:)`` returns the key; the
 /// views below `.karnakHost` draw again when it arrives. An app that shows static text on its first
 /// frame awaits ``ready()`` behind its splash screen.
 ///
@@ -53,19 +51,6 @@ public struct KarnakSwiftResources: Sendable, Equatable {
   /// is not in version 1: format the value first.
   public func string(_ key: String, args: [String: Any] = [:]) -> String {
     core.string(key, args: args)
-  }
-
-  /// The color `name` as a dynamic `Color` that follows the system's light and dark appearance, from
-  /// the theme called `theme` or the environment's default theme; `nil` when the theme or the name
-  /// is unknown, or before the first load ends. The `Color` reads the content when SwiftUI
-  /// resolves it, so switching to dark mode changes it without a request.
-  public func color(_ name: String, theme: String? = nil) -> Color? {
-    core.color(name, theme: theme)
-  }
-
-  /// ``color(_:theme:)``, or `fallback` when it is `nil`.
-  public func color(_ name: String, fallback: Color, theme: String? = nil) -> Color {
-    core.color(name, theme: theme) ?? fallback
   }
 
   /// The language of the strings (`en`, `ar-EG`), or `nil` before any table is available.
@@ -105,18 +90,16 @@ public struct KarnakResourcesUpdate: Sendable, Equatable {
   public let layoutDirection: LayoutDirection
   /// The revision of the string table in use (`strings@7`), or `nil`.
   public let stringsRevision: String?
-  /// The revision of the default theme the colors come from (`theme@12`), or `nil`.
-  public let themeRevision: String?
 }
 
 extension EnvironmentValues {
   /// The resources of the enclosing `.karnakHost`, drawn again when they change. Outside one it
-  /// answers every key with the key and every color with `nil`.
+  /// answers every key with the key.
   @Entry public var karnakResources: KarnakSwiftResources = .unavailable
 }
 
 extension KarnakSwiftResources {
-  /// Resources over nothing: keys for texts, no colors.
+  /// Resources over nothing: keys for texts.
   static let unavailable = KarnakSwiftResources(
     core: ResourcesCore(resources: nil, debug: false, log: { _ in }))
 }

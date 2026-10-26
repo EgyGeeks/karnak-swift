@@ -33,6 +33,12 @@ public struct KarnakHttpConnection: Sendable {
   /// The full paths, base path included, a request may start with, on a segment boundary. With
   /// none, nothing is allowed.
   public var allowedPrefixes: [String]
+  /// The header names a source may send on this connection, such as `X-Store-Id`: a source names a
+  /// header and the screen param that fills it, and any name not listed here is dropped and logged.
+  /// `Authorization`, `Cookie`, `Host`, the headers that frame a request and the SDK's own cannot be
+  /// listed (the connection is then invalid); credentials come from ``headerProvider``, which wins
+  /// over a source header of the same name. Default: none.
+  public var allowedHeaders: [String] = []
   /// Whether the API is on a private network, so private addresses and `http` are allowed.
   public var isInternal = false
   /// Marks an app-wide key rather than the user's token: a secret connection is never executed on
