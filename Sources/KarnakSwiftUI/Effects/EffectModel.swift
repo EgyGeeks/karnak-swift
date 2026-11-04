@@ -24,6 +24,8 @@ final class EffectModel: ObservableObject {
   @Published private(set) var sheet: PresentedSheet?
   /// The overlay on screen: a stack of the engine's, drawn in its own `NavigationStack`.
   @Published private(set) var overlay: OverlayModel?
+  /// Where the screen's inputs hear the engine's focus requests, once the tree they were computed against is shown.
+  let focus = InputFocus()
 
   private var pending: [EffectRequest] = []
   private var generation: Int64 = -1
@@ -100,6 +102,7 @@ final class EffectModel: ObservableObject {
   func setGeneration(_ generation: Int64) {
     guard generation > self.generation else { return }
     self.generation = generation
+    focus.expire()
     promote()
   }
 
@@ -113,6 +116,7 @@ final class EffectModel: ObservableObject {
     closeSheet()
     closeOverlay()
     pending = []
+    focus.expire()
     answeredDialogs = []
     blockedUntilClear = []
     // The next instance counts its own generations from the start.
@@ -220,6 +224,7 @@ final class EffectModel: ObservableObject {
     if overlay == nil, !blockedUntilClear.contains(.overlay), let request = take(\.asOverlay) {
       present(request)
     }
+    while let request = take(\.asFocus) { focus.request(request.key) }
   }
 
   /// The oldest waiting effect of one kind whose tree is on screen.
@@ -267,6 +272,7 @@ extension EffectRequest {
     case .dialog(let request): request.id
     case .sheet(let request): request.id
     case .overlay(let request): request.id
+    case .focus(let request): request.id
     case .dismiss(let id): id
     }
   }
@@ -277,6 +283,7 @@ extension EffectRequest {
     case .dialog(let request): request.generation
     case .sheet(let request): request.generation
     case .overlay(let request): request.generation
+    case .focus(let request): request.generation
     case .dismiss: -1
     }
   }
@@ -297,5 +304,9 @@ extension EffectRequest {
 
   var asOverlay: OverlayRequest? {
     if case .overlay(let request) = self { request } else { nil }
+  }
+
+  var asFocus: FocusRequestValue? {
+    if case .focus(let request) = self { request } else { nil }
   }
 }

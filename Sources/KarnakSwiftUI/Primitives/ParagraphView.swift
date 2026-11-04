@@ -13,10 +13,15 @@ struct ParagraphView: View {
   let paragraph: ResolvedParagraph
   /// Whether the node has its own accessibility label, which an empty paragraph keeps.
   var isLabelled = false
+  /// Where the lines start, in place of the paragraph's own `textAlign`: a text field's placeholder takes its
+  /// field's alignment (``FieldTextLayout``).
+  var alignment: TextAlignment?
   @Environment(\.karnakFonts) private var fonts
 
   var body: some View {
-    ThemedParagraph(paragraph: paragraph, isLabelled: isLabelled, fonts: fonts ?? .unavailable)
+    ThemedParagraph(
+      paragraph: paragraph, isLabelled: isLabelled, alignment: alignment,
+      fonts: fonts ?? .unavailable)
   }
 }
 
@@ -25,6 +30,7 @@ struct ParagraphView: View {
 private struct ThemedParagraph: View {
   let paragraph: ResolvedParagraph
   let isLabelled: Bool
+  let alignment: TextAlignment?
   @ObservedObject var fonts: ThemeFontRegistry
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.karnakActions) private var actions
@@ -46,7 +52,7 @@ private struct ThemedParagraph: View {
     }
     .lineLimit(paragraph.maxLines.map { Int($0.int32Value) })
     .truncationMode(.tail)
-    .multilineTextAlignment(textAlignment(paragraph.textAlign))
+    .multilineTextAlignment(alignment ?? textAlignment(paragraph.textAlign))
     .lineSpacing(styled.lineSpacing)
     .padding(.vertical, styled.edgeSpacing)
     // `minLines` lines of the drawn line height, which follows Dynamic Type with the text.

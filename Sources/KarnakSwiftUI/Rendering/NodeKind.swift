@@ -17,6 +17,8 @@ enum NodeKind {
   case icon(ResolvedIconNode)
   case button(ResolvedButton)
   case progress(ResolvedProgressNode)
+  /// A `text_field`, `select`, `checkbox`, `switch` or `radio_group`.
+  case input(ResolvedInput)
   case custom(ResolvedCustom)
   case unsupported
 
@@ -46,6 +48,7 @@ enum NodeKind {
     case let icon as ResolvedIconNode: .icon(icon)
     case let button as ResolvedButton: .button(button)
     case let progress as ResolvedProgressNode: .progress(progress)
+    case let input as ResolvedInput: .input(input)
     case let custom as ResolvedCustom: .custom(custom)
     default: nil
     }
@@ -108,7 +111,7 @@ enum NodeKind {
     case .list(let list): list.children
     case .carousel(let carousel): carousel.children
     case .custom(let custom): custom.fallback.map { [$0] } ?? []
-    case .text, .image, .icon, .button, .progress, .unsupported: []
+    case .text, .image, .icon, .button, .progress, .input, .unsupported: []
     }
   }
 }

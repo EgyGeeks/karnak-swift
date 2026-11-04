@@ -52,6 +52,14 @@ struct OverlayRequest {
   let stack: any StackSession
 }
 
+/// The engine asked to move focus to the input `key` (`FocusRequest`).
+struct FocusRequestValue {
+  let id: String
+  let generation: Int64
+  /// The input's node key.
+  let key: String
+}
+
 /// What the engine's effects stream delivers, as the views use it, so tests drive the views
 /// with plain values (the engine builds its own effects, and Swift can't).
 enum EffectRequest {
@@ -59,12 +67,13 @@ enum EffectRequest {
   case dialog(DialogRequest)
   case sheet(SheetRequest)
   case overlay(OverlayRequest)
+  case focus(FocusRequestValue)
   /// Close the effect with this id if it is still shown.
   case dismiss(id: String)
 }
 
 extension EffectRequest {
-  /// Maps the engine's effect; nil for one this renderer ignores (`FocusRequest`, until inputs).
+  /// Maps the engine's effect; nil for one this renderer doesn't know.
   init?(_ effect: Effect, session makeSession: @escaping (ScreenController) -> any ScreenSession) {
     switch effect {
     case let toast as Toast:
@@ -90,6 +99,9 @@ extension EffectRequest {
           id: overlay.id, generation: overlay.generation,
           presentation: KarnakPresentation(overlay.stack.presentation),
           stack: ControllerStack(overlay.stack, session: makeSession)))
+    case let focus as FocusRequest:
+      self = .focus(
+        FocusRequestValue(id: focus.id, generation: focus.generation, key: focus.key.value))
     case let dismiss as Dismiss:
       self = .dismiss(id: dismiss.id)
     default:

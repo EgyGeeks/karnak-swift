@@ -83,6 +83,7 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     config.register(
       customActions: configuration.customActions, screens: configuration.screenCustomActions,
       log: log)
+    config.register(formHandlers: configuration.formHandlers)
     for (name, value) in configuration.headers { config.setHeader(name: name, value: value) }
     configuration.headerProvider.map { provider in config.addHeaderProvider(provider: provider) }
     config.clientEventsEnabled = configuration.clientEvents.enabled

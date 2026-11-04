@@ -71,6 +71,9 @@ public struct KarnakConfiguration {
   /// The per-screen custom action handlers registered with ``screenCustomActions(_:_:)``, in order.
   var screenCustomActions: [(String, [CustomActionRegistration])] = []
 
+  /// The form handlers registered with ``formHandler(_:_:)`` and ``screenFormHandlers(_:_:)``, in order.
+  var formHandlers: [FormHandlerRegistration] = []
+
   /// The loading and error views registered with ``screenStates(_:)``.
   var screenStatesFactories = ScreenStatesFactories()
 

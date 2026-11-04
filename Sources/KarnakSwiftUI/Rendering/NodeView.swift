@@ -25,6 +25,9 @@ struct NodeView: View, Equatable {
     if case .button(let button) = kind {
       // A button draws its box for its interaction state itself.
       ButtonView(button: button, placement: placement)
+    } else if case .input(let input) = kind {
+      // An input draws its box around its parts itself, and its control is the accessibility element.
+      InputView(input: input, placement: placement)
     } else if kind.isDrawn {
       let drawn = primitive(kind)
         .nodeStyle(
@@ -63,9 +66,13 @@ struct NodeView: View, Equatable {
         children: column.children, fields: LinearFields(column), placement: placement,
         key: column.key.value)
     case .form(let form):
+      // The semantic form container (`docs/renderer-contract.md`, Inputs, `form`): a column whose inputs VoiceOver
+      // reaches as one group.
       ColumnView(
         children: form.children, fields: LinearFields(form), placement: placement,
-        key: form.key.value)
+        key: form.key.value
+      )
+      .accessibilityElement(children: .contain)
     case .row(let row):
       RowView(row: row, placement: placement)
     case .grid(let grid):

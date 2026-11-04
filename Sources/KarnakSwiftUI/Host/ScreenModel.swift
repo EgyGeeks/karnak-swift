@@ -201,6 +201,11 @@ final class ScreenModel: ObservableObject {
     session?.appear(handle)
   }
 
+  /// Sends an input's event to the open screen; nothing happens without one.
+  func input(_ event: InputEvent) {
+    session?.input(event)
+  }
+
   /// Answers the screen's host actions with `callbacks` from now on.
   func updateHostCallbacks(
     _ callbacks: KarnakHostCallbacks,

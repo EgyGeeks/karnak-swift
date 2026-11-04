@@ -21,6 +21,10 @@ struct ResolvedScreenView: View {
   /// Called with the handle of a node with `actions.appear` each time at least half of it is
   /// inside the viewport. The engine runs the actions once per node.
   var onAppear: (ActionHandle) -> Void = { _ in }
+  /// Called with each input's edits, toggles, picks, focus changes and keyboard actions (`InputEvent`).
+  var onInput: (InputEvent) -> Void = { _ in }
+  /// The engine's focus requests for this screen's inputs; without one the view keeps its own, which hears none.
+  var focus: InputFocus?
   /// Receives renderer diagnostics, such as a node type this renderer can't draw.
   var diagnostics: (String) -> Void = RendererDiagnostics.systemLog
   /// Whether the view reads what the window shows of it (``ViewportProbe``), which `actions.appear`
@@ -35,12 +39,19 @@ struct ResolvedScreenView: View {
   /// passes a new closure (Compose's `rememberUpdatedState`).
   @State private var actions = ActionSink()
 
+  /// Keeps its identity across updates, as ``actions`` does, for the inputs.
+  @State private var inputs = InputSink()
+
+  /// The focus of a view given none: kept across updates, so the inputs' environment doesn't change identity.
+  @State private var ownFocus = InputFocus()
+
   /// What the window shows of this view: the viewport of its nodes' appearances.
   @State private var viewport: CGRect?
 
   var body: some View {
     actions.handler = onAction
     actions.appearHandler = onAppear
+    inputs.handler = onInput
     return ZStack(alignment: .topLeading) {
       if let root = screen.root.flatMap(drawnNode) {
         NodeView(
@@ -56,6 +67,8 @@ struct ResolvedScreenView: View {
       if measuresViewport { ViewportProbe { viewport = $0 } }
     }
     .environment(\.karnakActions, actions)
+    .environment(\.karnakInputs, inputs)
+    .environment(\.karnakInputFocus, focus ?? ownFocus)
     .environment(\.karnakViewport, viewport)
     .environment(\.layoutDirection, layoutDirection(screen.layoutDirection))
     .task(id: ObjectIdentifier(screen)) {

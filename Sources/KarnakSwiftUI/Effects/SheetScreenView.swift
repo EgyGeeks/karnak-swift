@@ -21,7 +21,8 @@ struct SheetScreenView: View {
       ScrollView {
         ResolvedScreenView(
           screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
-          measuresViewport: true, fillsSpace: false)
+          onInput: { model.input($0) }, focus: model.effects.focus, measuresViewport: true,
+          fillsSpace: false)
       }
     case .failed(let error):
       views.error(

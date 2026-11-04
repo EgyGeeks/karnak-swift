@@ -103,6 +103,7 @@ struct OverlayScreenView: View {
   private func content(_ screen: ResolvedScreen) -> some View {
     ResolvedScreenView(
       screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
-      measuresViewport: true, fillsSpace: fillsSpace)
+      onInput: { model.input($0) }, focus: model.effects.focus, measuresViewport: true,
+      fillsSpace: fillsSpace)
   }
 }

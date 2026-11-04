@@ -23,7 +23,8 @@ struct ScreenPhaseView<Loading: View, Failure: View>: View {
     case .content(let screen):
       ResolvedScreenView(
         screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
-        measuresViewport: true, fillsSpace: fillsSpace
+        onInput: { model.input($0) }, focus: model.effects.focus, measuresViewport: true,
+        fillsSpace: fillsSpace
       )
       .environment(\.karnakRowAnchors, model.gate.anchors)
       .background { ScrollProbe { model.gate.scroll = $0 } }

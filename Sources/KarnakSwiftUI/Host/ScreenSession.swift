@@ -38,6 +38,14 @@ protocol ScreenSession: AnyObject {
   func click(_ handle: ActionHandle)
   /// Reports that the node whose `actions.appear` is `handle` is at least half visible.
   func appear(_ handle: ActionHandle)
+  /// The input `key` now holds the text or the picked option `value` (`nil`: no selection).
+  func valueChange(_ key: NodeKey, _ value: String?)
+  /// The checkbox or switch `key` was toggled to `checked`: the Boolean `valueChange`, named apart for Swift.
+  func checkedChange(_ key: NodeKey, _ checked: Bool)
+  /// Focus entered (`true`) or left (`false`) the input `key`.
+  func focusChange(_ key: NodeKey, _ focused: Bool)
+  /// The keyboard's action key was pressed on the text field `key`.
+  func imeAction(_ key: NodeKey)
   /// Sets the hooks that answer the screen's host actions.
   func setHostActions(_ actions: HostActions)
   /// Calls `listener` with each of the instance's effects, on the main thread, until the
@@ -56,6 +64,24 @@ protocol ScreenSession: AnyObject {
   /// The id of the screen the instance shows, when it is one; it picks the instance's loading and
   /// error views.
   var screenId: String? { get }
+}
+
+extension ScreenSession {
+  // Instances without inputs (fakes, previews) take none.
+  func valueChange(_ key: NodeKey, _ value: String?) {}
+  func checkedChange(_ key: NodeKey, _ checked: Bool) {}
+  func focusChange(_ key: NodeKey, _ focused: Bool) {}
+  func imeAction(_ key: NodeKey) {}
+
+  /// Sends one input event to the instance.
+  func input(_ event: InputEvent) {
+    switch event {
+    case .valueChange(let key, let value): valueChange(key, value)
+    case .checkedChange(let key, let checked): checkedChange(key, checked)
+    case .focusChange(let key, let focused): focusChange(key, focused)
+    case .imeAction(let key): imeAction(key)
+    }
+  }
 }
 
 /// Opens screens: the client, or a fake in tests.
@@ -191,6 +217,23 @@ final class ControllerSession: ScreenSession {
 
   func setHostActions(_ actions: HostActions) {
     controller.setHostActions(actions: actions)
+  }
+
+  func valueChange(_ key: NodeKey, _ value: String?) {
+    let typed: KarnakValue = value.map { KarnakValueText.make(value: $0) } ?? KarnakValueNull.shared
+    controller.valueChange(key: key, value: typed)
+  }
+
+  func checkedChange(_ key: NodeKey, _ checked: Bool) {
+    controller.valueChange(key: key, value: KarnakValueBool.make(value: checked))
+  }
+
+  func focusChange(_ key: NodeKey, _ focused: Bool) {
+    controller.focusChange(key: key, focused: focused)
+  }
+
+  func imeAction(_ key: NodeKey) {
+    controller.imeAction(key: key)
   }
 
   func observeEffects(_ listener: @escaping (EffectRequest) -> Void) -> () -> Void {
