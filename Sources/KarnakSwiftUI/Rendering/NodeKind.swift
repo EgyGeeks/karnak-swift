@@ -17,7 +17,7 @@ enum NodeKind {
   case icon(ResolvedIconNode)
   case button(ResolvedButton)
   case progress(ResolvedProgressNode)
-  /// A `text_field`, `select`, `checkbox`, `switch` or `radio_group`.
+  /// A `text_field`, `select`, `checkbox`, `switch`, `radio_group` or `chip_group`.
   case input(ResolvedInput)
   case custom(ResolvedCustom)
   case unsupported

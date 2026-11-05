@@ -49,6 +49,11 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   /// graph, as the first screen does, so keep it off construction.
   public var clientEvents: KarnakClientEvents { KarnakClientEvents(client.clientEvents) }
 
+  /// Signals on this device: raise `cart.changed` after a change the app made, and hear the signals raised
+  /// (``KarnakSwiftSignals``). Screens whose sources subscribe with `refreshOn` refresh on them. Getting it builds the
+  /// Kotlin client's graph, as the first screen does, so keep it off construction.
+  public var signals: KarnakSwiftSignals { KarnakSwiftSignals(client.signals) }
+
   /// The project's strings and theme colors for your own screens, with the bundled offline copy
   /// (``KarnakConfiguration/bundledResources``). Getting it does no I/O. See
   /// ``KarnakSwiftResources``.
@@ -86,6 +91,7 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     config.register(formHandlers: configuration.formHandlers)
     for (name, value) in configuration.headers { config.setHeader(name: name, value: value) }
     configuration.headerProvider.map { provider in config.addHeaderProvider(provider: provider) }
+    configuration.onSignInRequired.map { hook in config.onSignInRequired = { hook() } }
     config.clientEventsEnabled = configuration.clientEvents.enabled
     config.clientEventsSampleRate = configuration.clientEvents.sampleRate
     config.listener = configuration.listener.map(ListenerBridge.init)

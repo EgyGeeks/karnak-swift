@@ -42,6 +42,10 @@ protocol ScreenSession: AnyObject {
   func valueChange(_ key: NodeKey, _ value: String?)
   /// The checkbox or switch `key` was toggled to `checked`: the Boolean `valueChange`, named apart for Swift.
   func checkedChange(_ key: NodeKey, _ checked: Bool)
+  /// The multiple chip group `key` now has the option `values` selected, in the options' order (an array `valueChange`).
+  func selectionChange(_ key: NodeKey, _ values: [String])
+  /// The range slider `key` now holds `lower` to `upper` (an array of two numbers `valueChange`).
+  func rangeChange(_ key: NodeKey, lower: Double, upper: Double)
   /// Focus entered (`true`) or left (`false`) the input `key`.
   func focusChange(_ key: NodeKey, _ focused: Bool)
   /// The keyboard's action key was pressed on the text field `key`.
@@ -70,6 +74,8 @@ extension ScreenSession {
   // Instances without inputs (fakes, previews) take none.
   func valueChange(_ key: NodeKey, _ value: String?) {}
   func checkedChange(_ key: NodeKey, _ checked: Bool) {}
+  func selectionChange(_ key: NodeKey, _ values: [String]) {}
+  func rangeChange(_ key: NodeKey, lower: Double, upper: Double) {}
   func focusChange(_ key: NodeKey, _ focused: Bool) {}
   func imeAction(_ key: NodeKey) {}
 
@@ -78,6 +84,8 @@ extension ScreenSession {
     switch event {
     case .valueChange(let key, let value): valueChange(key, value)
     case .checkedChange(let key, let checked): checkedChange(key, checked)
+    case .selectionChange(let key, let values): selectionChange(key, values)
+    case .rangeChange(let key, let lower, let upper): rangeChange(key, lower: lower, upper: upper)
     case .focusChange(let key, let focused): focusChange(key, focused)
     case .imeAction(let key): imeAction(key)
     }
@@ -226,6 +234,18 @@ final class ControllerSession: ScreenSession {
 
   func checkedChange(_ key: NodeKey, _ checked: Bool) {
     controller.valueChange(key: key, value: KarnakValueBool.make(value: checked))
+  }
+
+  func selectionChange(_ key: NodeKey, _ values: [String]) {
+    let items: [KarnakValue] = values.map { KarnakValueText.make(value: $0) }
+    controller.valueChange(key: key, value: KarnakValueArray.make(values: items))
+  }
+
+  func rangeChange(_ key: NodeKey, lower: Double, upper: Double) {
+    let items: [KarnakValue] = [
+      KarnakValueNumber.make(value: lower), KarnakValueNumber.make(value: upper),
+    ]
+    controller.valueChange(key: key, value: KarnakValueArray.make(values: items))
   }
 
   func focusChange(_ key: NodeKey, _ focused: Bool) {

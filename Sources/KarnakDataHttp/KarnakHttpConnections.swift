@@ -29,6 +29,9 @@ public struct KarnakHttpConnections: KarnakClientModule {
     let kotlin = HttpConnectionSwift(name: connection.name, baseUrl: connection.baseUrl)
     kotlin.allowedPrefixes = connection.allowedPrefixes
     kotlin.allowedHeaders = connection.allowedHeaders
+    for write in connection.allowedWrites {
+      kotlin.addAllowedWrite(method: write.method, pathPrefix: write.pathPrefix)
+    }
     kotlin.isInternal = connection.isInternal
     kotlin.isSecret = connection.isSecret
     let enabled = connection.isEnabled

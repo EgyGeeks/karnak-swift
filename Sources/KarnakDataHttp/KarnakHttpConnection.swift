@@ -2,7 +2,8 @@ import Foundation
 import KarnakCore
 import KarnakSwiftUI
 
-/// A request as an interceptor sees it: the connection's `GET`, with the headers it is about to send.
+/// A request as an interceptor sees it: the connection's `GET` or a post's write, with the headers it is about to
+/// send; its body is not shown. The interceptor cannot move it, or change its method or body.
 public struct KarnakHttpRequest: Sendable {
   public var url: String
   public var method: String
@@ -12,6 +13,20 @@ public struct KarnakHttpRequest: Sendable {
     self.url = url
     self.method = method
     self.headers = headers
+  }
+}
+
+/// One write the app lets `post` actions make on a connection (ADR 0035, D3): a method (`POST`, `PUT`, `PATCH` or
+/// `DELETE`) and the full path prefix, base path included. The path matches by whole segments, as
+/// ``KarnakHttpConnection/allowedPrefixes`` do: `/v1/cart` matches `/v1/cart` and `/v1/cart/items/x`, never
+/// `/v1/cartography`. A trailing slash is ignored.
+public struct KarnakHttpWrite: Sendable {
+  public var method: String
+  public var pathPrefix: String
+
+  public init(method: String, pathPrefix: String) {
+    self.method = method
+    self.pathPrefix = pathPrefix
   }
 }
 
@@ -39,6 +54,11 @@ public struct KarnakHttpConnection: Sendable {
   /// listed (the connection is then invalid); credentials come from ``headerProvider``, which wins
   /// over a source header of the same name. Default: none.
   public var allowedHeaders: [String] = []
+  /// The writes `post` actions may make on this connection (ADR 0035, D3), such as
+  /// `KarnakHttpWrite(method: "POST", pathPrefix: "/v1/cart")`. Sources stay `GET`: a dashboard author cannot turn a
+  /// connection into a write path, only the app can. A post whose method and bound path match no entry fails on the
+  /// device as `method_not_allowed`, before ``headerProvider`` runs. At most 32. Default: none.
+  public var allowedWrites: [KarnakHttpWrite] = []
   /// Whether the API is on a private network, so private addresses and `http` are allowed.
   public var isInternal = false
   /// Marks an app-wide key rather than the user's token: a secret connection is never executed on

@@ -15,6 +15,8 @@ struct InputView: View {
     case let toggle as ResolvedSwitch: SwitchView(toggle: toggle, placement: placement)
     case let group as ResolvedRadioGroup: RadioGroupView(group: group, placement: placement)
     case let select as ResolvedSelect: SelectView(select: select, placement: placement)
+    case let chips as ResolvedChipGroup: ChipGroupView(group: chips, placement: placement)
+    case let slider as ResolvedRangeSlider: RangeSliderView(slider: slider, placement: placement)
     default: EmptyView()
     }
   }
