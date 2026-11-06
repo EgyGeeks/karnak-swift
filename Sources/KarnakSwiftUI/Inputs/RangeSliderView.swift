@@ -20,10 +20,14 @@ struct RangeSliderView: View {
 
   private enum Thumb: Hashable { case lower, upper }
 
+  /// The length of a rail that wraps, which has no content to size it: 160 points, as 160 dp.
+  private let wrappedRail: CGFloat = 160
+
   var body: some View {
     let drawn = restyled(slider, for: focusedThumb != nil ? [.focused] : [])
     InputFrame(input: drawn, placement: placement, label: drawn.label, support: drawn.error) {
       rail(drawn)
+        .frame(width: placement.spans(drawn) ? nil : wrappedRail)
         .partBox(drawn.control, alignment: .center)
         .accessibilityElement(children: .contain)
     }

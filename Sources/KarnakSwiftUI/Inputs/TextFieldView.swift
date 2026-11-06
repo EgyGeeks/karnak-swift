@@ -49,7 +49,7 @@ struct TextFieldView: View {
         }
         editor(drawn, layout: layout)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(maxWidth: placement.spans(drawn) ? .infinity : nil, alignment: .leading)
       .partBox(drawn.control)
       .underline(drawn.indicator, in: drawn.control)
       .contentShape(Rectangle())

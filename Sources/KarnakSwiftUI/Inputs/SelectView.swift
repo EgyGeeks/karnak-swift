@@ -57,7 +57,7 @@ struct SelectView: View {
       Group {
         if let shown = drawn.display ?? drawn.placeholder { InputTextView(shown) }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(maxWidth: placement.spans(drawn) ? .infinity : nil, alignment: .leading)
       VectorIconView(drawn.expandIcon)
     }
     .partBox(drawn.control)

@@ -5,8 +5,8 @@ import SwiftUI
 /// another from the leading edge and wrapping onto further lines, `spacing` apart both ways, in one accessibility
 /// container named by the input. Each chip is a button around its label and is the option's touch target; VoiceOver
 /// reads the selected one as selected. Picking an enabled chip sends its value, and takes focus from the other inputs.
-/// Focus moving between chips sends nothing: the group reports focus entering and leaving it. In a `multiple` group (an
-/// input set) a chip toggles on its own and sends every value selected then, in the options' order.
+/// Focus moving between chips sends nothing: the group reports focus entering and leaving it. In a `multiple` group (a set's or
+/// a form's) a chip toggles on its own and sends every value selected then, in the options' order.
 struct ChipGroupView: View {
   let group: ResolvedChipGroup
   let placement: ChildPlacement
@@ -41,7 +41,7 @@ struct ChipGroupView: View {
         ChipView(option: option, focused: $focusedChip) { pick(option) }
       }
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(maxWidth: placement.spans(drawn) ? .infinity : nil, alignment: .leading)
   }
 
   /// The chip a `FocusRequest` focuses: the selected one, else the first enabled one.

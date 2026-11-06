@@ -48,6 +48,13 @@ struct InputFrame<Control: View>: View {
   }
 }
 
+extension ChildPlacement {
+  /// Whether the controls of `input` span its box: they do unless the input wraps its content on the horizontal axis.
+  /// The engine resolves a width that is a number or `fill` for an input that should span, and leaves `wrap` for a
+  /// child of a row or of a scrolling carousel (`docs/renderer-contract.md`, Inputs).
+  func spans(_ input: ResolvedInput) -> Bool { !wraps(.horizontal, of: input.layout) }
+}
+
 /// Hides a hidden input from VoiceOver. Applied only when hidden: `accessibilityHidden(false)` would expose the texts
 /// the control reads.
 private struct HiddenInput: ViewModifier {
