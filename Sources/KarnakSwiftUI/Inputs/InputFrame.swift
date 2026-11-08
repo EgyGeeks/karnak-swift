@@ -1,27 +1,6 @@
 import KarnakCore
 import SwiftUI
 
-/// An input as one element (`docs/renderer-contract.md`, Inputs): the node's box around its label, its control and
-/// its helper or error text, stacked top to bottom. The node's `layout` and `style` are the whole input and the
-/// control is a box inside it; the two never merge.
-struct InputView: View {
-  let input: ResolvedInput
-  let placement: ChildPlacement
-
-  var body: some View {
-    switch input {
-    case let field as ResolvedTextField: TextFieldView(field: field, placement: placement)
-    case let checkbox as ResolvedCheckbox: CheckboxView(checkbox: checkbox, placement: placement)
-    case let toggle as ResolvedSwitch: SwitchView(toggle: toggle, placement: placement)
-    case let group as ResolvedRadioGroup: RadioGroupView(group: group, placement: placement)
-    case let select as ResolvedSelect: SelectView(select: select, placement: placement)
-    case let chips as ResolvedChipGroup: ChipGroupView(group: chips, placement: placement)
-    case let slider as ResolvedRangeSlider: RangeSliderView(slider: slider, placement: placement)
-    default: EmptyView()
-    }
-  }
-}
-
 /// The node's box around an input's parts: `label` above the control (nil for a checkbox and a switch, whose label
 /// sits in the control row), then the control, then `support`, the error or else the helper. The texts are hidden
 /// from VoiceOver, since the control reads them.

@@ -17,8 +17,8 @@ enum TreeStructure {
   private static func isSame(_ old: ResolvedNode, _ new: ResolvedNode) -> Bool {
     if old === new { return true }
     guard old.key.value == new.key.value else { return false }
-    let oldChildren = NodeKind(old).children
-    let newChildren = NodeKind(new).children
+    let oldChildren = NodeRenderers.children(of: old)
+    let newChildren = NodeRenderers.children(of: new)
     guard oldChildren.count == newChildren.count else { return false }
     return zip(oldChildren, newChildren).allSatisfy { isSame($0, $1) }
   }
@@ -51,7 +51,7 @@ enum TreeStructure {
     var keys: Set<String> = []
     func visit(_ node: ResolvedNode, parent: String?) {
       if isRowRoot(node.key.value, parent: parent) { keys.insert(node.key.value) }
-      for child in NodeKind(node).children { visit(child, parent: node.key.value) }
+      for child in NodeRenderers.children(of: node) { visit(child, parent: node.key.value) }
     }
     if let root = screen.root { visit(root, parent: nil) }
     return keys

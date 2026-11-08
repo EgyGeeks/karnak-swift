@@ -54,9 +54,8 @@ struct ResolvedScreenView: View {
     inputs.handler = onInput
     return ZStack(alignment: .topLeading) {
       if let root = screen.root.flatMap(drawnNode) {
-        NodeView(
-          node: root, placement: fillsSpace && NodeKind(root).isContainer ? .root : .standalone
-        ).equatable()
+        let fills = fillsSpace && NodeRenderers.registration(for: root).isContainer
+        NodeView(node: root, placement: fills ? .root : .standalone).equatable()
       }
     }
     .frame(

@@ -6,7 +6,8 @@ import SwiftUI
 ///
 /// `Equatable` on the node, identity first: the engine shares unchanged subtrees between trees,
 /// so wrapped in `.equatable()` an unchanged node skips `body` and its whole subtree. A node
-/// type this renderer doesn't draw is skipped; the root view reports it.
+/// type this renderer doesn't draw is skipped; the root view reports it. The drawing is the one registered for the
+/// node's kind in ``NodeRenderers``.
 struct NodeView: View, Equatable {
   /// The node to draw.
   let node: ResolvedNode
@@ -19,21 +20,18 @@ struct NodeView: View, Equatable {
   }
 
   var body: some View {
-    let kind = NodeKind(node)
-    // Containers and the root draw `drawnNode(_:)`, so custom and unsupported nodes don't
-    // reach here.
-    if case .button(let button) = kind {
-      // A button draws its box for its interaction state itself.
-      ButtonView(button: button, placement: placement)
-    } else if case .input(let input) = kind {
-      // An input draws its box around its parts itself, and its control is the accessibility element.
-      InputView(input: input, placement: placement)
-    } else if kind.isDrawn {
-      let drawn = primitive(kind)
+    let registration = NodeRenderers.registration(for: node)
+    // Containers and the root draw `drawnNode(_:)`, so custom and unsupported nodes don't reach here.
+    if registration.drawsOwnBox {
+      // A button draws its box for its interaction state itself, and an input draws its box around its parts; its
+      // control is the accessibility element.
+      registration.draw(node, placement)
+    } else if registration.isDrawn {
+      let drawn = registration.draw(node, placement)
         .nodeStyle(
-          node, placement: placement, contentPosition: kind.contentPosition,
-          content: kind.boxContent)
-      if kind.reportsFrame || (reportsLabelled && node.semantics.label != nil) {
+          node, placement: placement, contentPosition: registration.contentPosition(node),
+          content: registration.boxContent(node))
+      if registration.reportsFrame || (reportsLabelled && node.semantics.label != nil) {
         // A list or a carousel reports its whole box, its own padding included, as its rows do; so does a labelled
         // node in a carousel's item.
         drawn.modifier(FrameReport(key: node.key.value))
@@ -44,64 +42,6 @@ struct NodeView: View, Equatable {
       } else {
         drawn
       }
-    }
-  }
-
-  @ViewBuilder
-  private func primitive(_ kind: NodeKind) -> some View {
-    switch kind {
-    case .column, .form, .row, .grid, .stack, .list, .carousel:
-      container(kind)
-    default:
-      content(kind)
-    }
-  }
-
-  /// The primitives that lay out children.
-  @ViewBuilder
-  private func container(_ kind: NodeKind) -> some View {
-    switch kind {
-    case .column(let column):
-      ColumnView(
-        children: column.children, fields: LinearFields(column), placement: placement,
-        key: column.key.value)
-    case .form(let form):
-      // The semantic form container (`docs/renderer-contract.md`, Inputs, `form`): a column whose inputs VoiceOver
-      // reaches as one group.
-      ColumnView(
-        children: form.children, fields: LinearFields(form), placement: placement,
-        key: form.key.value
-      )
-      .accessibilityElement(children: .contain)
-    case .row(let row):
-      RowView(row: row, placement: placement)
-    case .grid(let grid):
-      GridView(grid: grid, placement: placement)
-    case .stack(let stack):
-      StackView(stack: stack, placement: placement)
-    case .list(let list):
-      ListView(list: list, placement: placement)
-    case .carousel(let carousel):
-      CarouselView(carousel: carousel, placement: placement)
-    default:
-      EmptyView()
-    }
-  }
-
-  /// The primitives that draw their own content.
-  @ViewBuilder
-  private func content(_ kind: NodeKind) -> some View {
-    switch kind {
-    case .text(let text):
-      ParagraphView(paragraph: text.paragraph, isLabelled: node.semantics.label != nil)
-    case .image(let image):
-      ImageView(image: image)
-    case .icon(let icon):
-      IconView(node: icon)
-    case .progress(let progress):
-      ProgressIndicatorView(progress.progress)
-    default:
-      EmptyView()
     }
   }
 }

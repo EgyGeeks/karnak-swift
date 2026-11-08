@@ -16,13 +16,13 @@ enum RendererDiagnostics {
     guard let root = screen.root else { return }
     var pending: [ResolvedNode] = [root]
     while let node = pending.popLast() {
-      let kind = NodeKind(node)
-      if case .unsupported = kind {
+      let registration = NodeRenderers.registration(for: node)
+      if !registration.isSupported {
         log(
           "Karnak: skipped node \(node.key.value) of unsupported type \(type(of: node)) "
             + "in screen \(screen.screenId); see docs/renderer-contract.md#principles.")
       }
-      pending.append(contentsOf: kind.children.reversed())
+      pending.append(contentsOf: registration.children(node).reversed())
     }
   }
 }

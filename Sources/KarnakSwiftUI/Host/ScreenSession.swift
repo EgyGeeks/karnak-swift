@@ -63,6 +63,12 @@ protocol ScreenSession: AnyObject {
   /// Tells the instance whether its screen is in the foreground: with `false` it stops its data
   /// streams and keeps their values, with `true` they start again (`ScreenController.setForeground`).
   func setForeground(_ foreground: Bool)
+  /// The form state the person typed, as text for the host's saved state, or nil when there is nothing to save
+  /// (`ScreenController.saveState`).
+  func saveState() -> String?
+  /// Restores `saved`, text an earlier instance's ``saveState()`` gave, into this new instance of the same screen
+  /// and params; call it once, right after the instance opens (`ScreenController.restoreState`).
+  func restoreState(_ saved: String)
   /// Stops the instance's work.
   func close()
   /// The id of the screen the instance shows, when it is one; it picks the instance's loading and
@@ -78,6 +84,8 @@ extension ScreenSession {
   func rangeChange(_ key: NodeKey, lower: Double, upper: Double) {}
   func focusChange(_ key: NodeKey, _ focused: Bool) {}
   func imeAction(_ key: NodeKey) {}
+  func saveState() -> String? { nil }
+  func restoreState(_ saved: String) {}
 
   /// Sends one input event to the instance.
   func input(_ event: InputEvent) {
@@ -275,6 +283,14 @@ final class ControllerSession: ScreenSession {
 
   func setForeground(_ foreground: Bool) {
     controller.setForeground(foreground: foreground)
+  }
+
+  func saveState() -> String? {
+    controller.saveState()
+  }
+
+  func restoreState(_ saved: String) {
+    controller.restoreState(saved: saved)
   }
 
   func close() {
