@@ -54,7 +54,6 @@ private struct EffectsPresentation: ViewModifier {
           set: { if $0 == nil, let open = model.sheet { model.sheetClosedByUser(id: open.id) } })
       ) { presented in
         SheetScreenView(model: presented.model)
-          .presentationDetents([.medium, .large])
           .presentationDragIndicator(.visible)
       }
   }

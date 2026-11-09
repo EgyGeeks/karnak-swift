@@ -7,7 +7,8 @@ import SwiftUI
 /// A thumb moves in whole steps from `min`, never past the other, and one move sends one `rangeChange` with both numbers.
 /// A drag works on the whole rail, which is the touch target: it takes the thumb nearest to where it starts (the lower one
 /// when both sit at the end of the rail or the press is before them), so overlapping thumbs stay reachable.
-/// Each thumb is a VoiceOver adjustable element named by the input and "Minimum" or "Maximum", with its value; swiping up
+/// The two picked values are drawn in a row above the rail. Each thumb is a VoiceOver adjustable element named by the
+/// input and "Minimum" or "Maximum", with its formatted text as its value; swiping up
 /// or down moves it a step. A disabled or read-only slider ignores drags and adjustments.
 struct RangeSliderView: View {
   let slider: ResolvedRangeSlider
@@ -26,10 +27,13 @@ struct RangeSliderView: View {
   var body: some View {
     let drawn = restyled(slider, for: focusedThumb != nil ? [.focused] : [])
     InputFrame(input: drawn, placement: placement, label: drawn.label, support: drawn.error) {
-      rail(drawn)
-        .frame(width: placement.spans(drawn) ? nil : wrappedRail)
-        .partBox(drawn.control, alignment: .center)
-        .accessibilityElement(children: .contain)
+      VStack(spacing: 0) {
+        pickedValues(drawn)
+        rail(drawn)
+          .partBox(drawn.control, alignment: .center)
+      }
+      .frame(width: placement.spans(drawn) ? nil : wrappedRail)
+      .accessibilityElement(children: .contain)
     }
     .onChange(of: focusedThumb != nil) {
       inputs.send(.focusChange(slider.key, $0))
@@ -42,6 +46,18 @@ struct RangeSliderView: View {
     .onAppear {
       if focus.take(slider.key.value) { focusedThumb = .lower }
     }
+  }
+
+  /// The two picked values in a row above the rail: the lower at the leading edge and the upper at the trailing edge,
+  /// which a right-to-left environment mirrors. VoiceOver says them as the value of their thumbs, so the row is hidden.
+  private func pickedValues(_ drawn: ResolvedRangeSlider) -> some View {
+    HStack {
+      Text(drawn.lowerText)
+      Spacer(minLength: 0)
+      Text(drawn.upperText)
+    }
+    .modifier(InputValueStyle(style: drawn.valueStyle, multiline: false))
+    .accessibilityHidden(true)
   }
 
   private func rail(_ drawn: ResolvedRangeSlider) -> some View {
@@ -96,7 +112,7 @@ struct RangeSliderView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .accessibilityElement()
       .accessibilityLabel(name)
-      .accessibilityValue(spoken(value))
+      .accessibilityValue(which == .lower ? drawn.lowerText : drawn.upperText)
       .accessibilityAdjustableAction { adjust in
         switch adjust {
         case .increment: move(which, drawn, to: value + drawn.step)
@@ -155,11 +171,5 @@ struct RangeSliderView: View {
   private func share(_ value: Double, _ drawn: ResolvedRangeSlider) -> CGFloat {
     let span = drawn.max - drawn.min
     return span > 0 ? CGFloat((value - drawn.min) / span) : 0
-  }
-
-  /// A number as VoiceOver says it: `100`, not `100.0`.
-  private func spoken(_ value: Double) -> String {
-    if value == value.rounded(), let whole = Int(exactly: value) { return String(whole) }
-    return String(value)
   }
 }

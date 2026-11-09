@@ -9,7 +9,7 @@ enum InputEvent {
   case valueChange(NodeKey, String?)
   /// A `checkbox` or `switch` was toggled to this value.
   case checkedChange(NodeKey, Bool)
-  /// A multiple `chip_group`'s selected option values, in the options' order.
+  /// A multiple `chip_group`'s or a `checkbox_group`'s selected option values, in the options' order.
   case selectionChange(NodeKey, [String])
   /// A `range_slider`'s lower and upper numbers.
   case rangeChange(NodeKey, lower: Double, upper: Double)

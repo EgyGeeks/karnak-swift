@@ -9,7 +9,8 @@ struct SheetScreenView: View {
   @Environment(\.karnakScreenStates) private var screenStates
 
   var body: some View {
-    phaseView.presentingEffects(model.effects)
+    // Every phase is measured: a loading or failed sheet is as tall as its state view.
+    phaseView.fitsSheet().presentingEffects(model.effects)
   }
 
   @ViewBuilder private var phaseView: some View {
@@ -18,12 +19,14 @@ struct SheetScreenView: View {
       views.loading(of: model.screenId, callSite: nil as (() -> EmptyView)?)
         .onAppear { model.screenId.map(screenStates.reportFallback) }
     case .content(let screen):
-      ScrollView {
-        ResolvedScreenView(
-          screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
-          onInput: { model.input($0) }, focus: model.effects.focus, measuresViewport: true,
-          fillsSpace: false)
-      }
+      // Bounded by the sheet, not scrolled: a weighted child takes the height left, and scrolling is
+      // the screen's own `list`.
+      ResolvedScreenView(
+        screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
+        onInput: { model.input($0) }, focus: model.effects.focus, measuresViewport: true,
+        fillsSpace: false
+      )
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     case .failed(let error):
       views.error(
         of: model.screenId, error, retry: { model.retry() },

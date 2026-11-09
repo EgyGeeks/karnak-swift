@@ -12,7 +12,6 @@ struct OverlayPresentation: View {
     Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
       .sheet(item: overlay(.sheet)) { presented in
         ContainedStackView(overlay: presented, fillsSpace: false)
-          .presentationDetents([.medium, .large])
           .presentationDragIndicator(.visible)
       }
       .fullScreenCover(item: overlay(.modal)) { presented in
@@ -32,10 +31,20 @@ struct OverlayPresentation: View {
 struct ContainedStackView: View {
   @ObservedObject var overlay: OverlayModel
   /// Whether the screens fill the space they are offered (a full-screen cover, a placed flow)
-  /// or scroll in their own height (a sheet).
+  /// or are bounded by the sheet without scrolling it (a sheet).
   let fillsSpace: Bool
+  /// What the entries of a sheet measured: the sheet is as tall as the top one.
+  @State private var heights = SheetHeights()
 
   var body: some View {
+    if fillsSpace {
+      stack
+    } else {
+      stack.presentationDetents([heights.detent(top: overlay.entries.last)])
+    }
+  }
+
+  private var stack: some View {
     NavigationStack(
       path: Binding(
         get: { overlay.entries.dropFirst().map(\.id) },
@@ -43,25 +52,37 @@ struct ContainedStackView: View {
     ) {
       Group {
         if let root = overlay.entries.first {
-          ContainedEntryView(entry: root, fillsSpace: fillsSpace)
+          ContainedEntryView(entry: root, fillsSpace: fillsSpace, onHeight: report(root.id))
             .toolbar(.hidden, for: .navigationBar)
         }
       }
       .navigationDestination(for: String.self) { id in
         if let entry = overlay.entries.first(where: { $0.id == id }) {
-          ContainedEntryView(entry: entry, fillsSpace: fillsSpace)
+          ContainedEntryView(entry: entry, fillsSpace: fillsSpace, onHeight: report(id))
         }
       }
     }
   }
+
+  private func report(_ id: String) -> (CGFloat) -> Void { { heights.record($0, for: id) } }
 }
 
 /// One entry of a contained stack: the SDK's screen, or the app's native screen of a route step.
 private struct ContainedEntryView: View {
   let entry: OverlayEntry
   let fillsSpace: Bool
+  let onHeight: (CGFloat) -> Void
 
   var body: some View {
+    if fillsSpace || entry.route != nil {
+      content
+    } else {
+      // As tall as the screen needs up to the sheet's cap: weighted children take the height left.
+      content.measuredForSheet(onHeight)
+    }
+  }
+
+  @ViewBuilder private var content: some View {
     if let model = entry.model {
       OverlayScreenView(model: model, fillsSpace: fillsSpace)
     } else if let route = entry.route {
@@ -89,7 +110,8 @@ struct OverlayScreenView: View {
       if fillsSpace {
         content(screen)
       } else {
-        ScrollView { content(screen) }
+        // Bounded by the sheet, not scrolled: weighted children take the height left.
+        content(screen).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       }
     case .failed(let error):
       views.error(

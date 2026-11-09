@@ -231,6 +231,11 @@ enum NodeRenderers {
       draw: { chips, placement in
         AnyView(ChipGroupView(group: chips, placement: placement))
       })
+    table["checkbox_group"] = .of(
+      ResolvedCheckboxGroup.self, drawsOwnBox: true,
+      draw: { group, placement in
+        AnyView(CheckboxGroupView(group: group, placement: placement))
+      })
     table["range_slider"] = .of(
       ResolvedRangeSlider.self, drawsOwnBox: true,
       draw: { slider, placement in

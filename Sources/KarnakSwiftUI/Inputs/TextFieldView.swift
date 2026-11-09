@@ -119,8 +119,8 @@ struct TextFieldView: View {
 }
 
 /// The value's font and color, and the cursor's color (`ResolvedTextField.textStyle`), scaled once for Dynamic Type
-/// as a paragraph is, in the theme face once the registry has it.
-private struct InputValueStyle: ViewModifier {
+/// as a paragraph is, in the theme face once the registry has it. A range slider draws its picked values with it too.
+struct InputValueStyle: ViewModifier {
   let style: InputTextStyle
   let multiline: Bool
   @Environment(\.karnakFonts) private var fonts
