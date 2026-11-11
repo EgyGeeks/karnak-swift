@@ -11,9 +11,10 @@ struct CarouselView: View {
   /// Which axes of the carousel's box its own parent sizes.
   let placement: ChildPlacement
   @State private var current = 0
+  @Environment(\.karnakComponents) private var components
 
   var body: some View {
-    let nodes = carousel.children.compactMap(drawnNode)
+    let nodes = carousel.children.compactMap { components.drawnNode($0) }
     let metrics = carouselMetrics(carousel, count: nodes.count)
     KarnakCarouselLayout(
       metrics: metrics, wrapsHeight: placement.wraps(.vertical, of: carousel.layout)
@@ -26,8 +27,10 @@ struct CarouselView: View {
         }
       }
       // Never placed, but its items are views, which SwiftUI would draw at its centre: hidden (still measured), out of
-      // accessibility, hit testing and the frame observer, and with no viewport, so no `appear` fires for a copy.
+      // accessibility, hit testing and the frame observer, and with no viewport, so no `appear` fires for a copy. Its
+      // copies offer no floating anchors: placed at its centre, they would move a popover off the drawn item.
       .hidden()
+      .offeringNoFloatingAnchors()
       .accessibilityHidden(true)
       .allowsHitTesting(false)
       .environment(\.karnakFrameObserver, nil)

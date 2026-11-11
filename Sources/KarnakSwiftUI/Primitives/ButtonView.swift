@@ -50,7 +50,13 @@ struct ButtonView: View {
     .focused($focused)
     .onHover { hovered = $0 }
     .onPreferenceChange(ButtonPressedKey.self) { pressed = $0 }
-    .modifier(NodeSemantics(semantics: button.semantics, isContainer: false))
+    .modifier(NodeSemantics(semantics: AccessibilitySemantics(button), isContainer: false))
+    .modifier(
+      NodeTooltip(
+        key: button.key.value, tooltip: button.layout.tooltip, focused: focused, isButton: true,
+        longPressShows: button.layout.contextMenu == nil)
+    )
+    .modifier(NodeContextMenu(menu: button.layout.contextMenu))
     // Outside `.disabled`, so it still takes the taps the disabled button ignores.
     .modifier(TapBarrier(isActive: button.semantics.disabled, touchTarget: target))
     .modifier(ReservedTouchTarget(minimum: placement.reservesTouchTarget ? target : 0))

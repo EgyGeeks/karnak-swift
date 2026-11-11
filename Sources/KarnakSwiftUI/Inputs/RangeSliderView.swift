@@ -35,9 +35,9 @@ struct RangeSliderView: View {
       .frame(width: placement.spans(drawn) ? nil : wrappedRail)
       .accessibilityElement(children: .contain)
     }
-    .onChange(of: focusedThumb != nil) {
-      inputs.send(.focusChange(slider.key, $0))
-      if $0 { focus.moved(to: slider.key.value) }
+    .onChange(of: focusedThumb != nil) { _, isFocused in
+      inputs.send(.focusChange(slider.key, isFocused))
+      if isFocused { focus.moved(to: slider.key.value) }
     }
     .onReceive(focus.moves) { if $0 != slider.key.value { focusedThumb = nil } }
     .onReceive(focus.requests) { key in

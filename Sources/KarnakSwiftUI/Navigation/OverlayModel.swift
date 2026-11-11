@@ -16,7 +16,7 @@ struct OverlayEntry: Identifiable {
 @MainActor
 final class OverlayModel: ObservableObject, Identifiable {
   let id: String
-  /// ``KarnakPresentation/sheet`` or ``KarnakPresentation/modal``.
+  /// ``KarnakPresentation/sheet``, ``KarnakPresentation/modal`` or ``KarnakPresentation/detail``.
   let presentation: KarnakPresentation
   @Published private(set) var entries: [OverlayEntry] = []
   /// Called when the stack has no entry left: the overlay is over, however it ended.

@@ -25,8 +25,13 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   private let signedInState = SignedInState()
   /// The loading and error views the app registered with ``KarnakConfiguration/screenStates(_:)``.
   let screenStates: ScreenStatesRegistry
+  /// The custom components the app registered with ``KarnakConfiguration/components(_:)``.
+  let components: ComponentRegistry
   /// The installed flows module (`KarnakFlows`), or nil when the app didn't add one.
   let flowModule: KarnakNavigationModule?
+
+  /// What tells this client's saved state from another client's in the same app: its server and client key.
+  let savedStateScope: String
 
   private let navigatorLock = NSLock()
   private var cachedNavigator: KarnakSwiftNavigator?
@@ -70,6 +75,9 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   public init(_ configuration: KarnakConfiguration) throws {
     let config = KarnakClientConfig(
       clientKey: configuration.clientKey, baseUrl: configuration.baseUrl)
+    components = ComponentRegistry(configuration.componentRenderers)
+    config.renderer = SwiftRendererProfile.make(
+      loadingLabel: config.renderer.loadingLabel, custom: components.types)
     config.appVersion = configuration.appVersion
     config.debug = configuration.debug
     config.acceptLanguage = configuration.acceptLanguage
@@ -103,6 +111,7 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     client = try KarnakClientIosKt.KarnakClient(config: config)
     debug = configuration.debug
     self.log = log
+    savedStateScope = "\(configuration.baseUrl) \(configuration.clientKey)"
     resourcesCore = ResourcesCore(client: client, debug: configuration.debug, log: log)
     screenStates = ScreenStatesRegistry(
       configuration.screenStatesFactories, debug: configuration.debug, log: log)

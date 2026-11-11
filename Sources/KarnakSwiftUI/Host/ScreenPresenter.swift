@@ -5,7 +5,7 @@ import SwiftUI
 /// What ``KarnakScreen`` and ``KarnakSection`` share: opens the screen for the environment's
 /// client and shows the loading, content or error view for its state.
 ///
-/// A screen lives as long as the view's identity, which SwiftUI marks with the `@StateObject`s it
+/// A screen lives as long as the view's identity, which SwiftUI marks with the `@State`s it
 /// keeps (``ViewLifetime``): a screen that is only hidden (covered in a `NavigationStack`, in another
 /// `TabView` tab) keeps its content, its pending effects and its scroll position, and closes
 /// when its view is gone for good (`docs/integration.md`, State ownership). A section closes
@@ -31,9 +31,9 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   /// The SDK's own views, the last choice.
   let sdkViews: SdkScreenViews
 
-  @StateObject private var model = ScreenModel()
+  @State private var model = ScreenModel()
   /// Ends with the view's identity, and stops the model then (``ViewLifetime``).
-  @StateObject private var lifetime = ViewLifetime()
+  @State private var lifetime = ViewLifetime()
   @Environment(\.karnakOpener) private var opener
   @Environment(\.karnakScreenStates) private var screenStates
   @Environment(\.karnakHostCallbacks) private var hostCallbacks
@@ -77,7 +77,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
     let _ = model.updateHostCallbacks(
       hostCallbacks.withDefault(navigation: stackLevel.map(karnakNavigationTarget)),
       onFinish: onFinish)
-    ZStack {
+    panes {
       phaseView
       // The lifecycle hangs on a view of its own: a phase that draws nothing, such as a
       // section's default loading view, is no view at all, and SwiftUI never runs its tasks.
@@ -88,6 +88,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
           guard width != nil else { return }
           lifetime.model = model
           screenObserver?(model)
+          model.savedFormsSlot = savedFormsSlot
           model.start(
             key, opener: opener, params: params, environment: environment, entry: resolved,
             reportsRemoval: ownEntry)
@@ -112,10 +113,34 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
           }
         }
         .onReceive(AppLifecycle.isActive) { model.setAppActive($0) }
+        .onReceive(AppLifecycle.isFrontmost) { model.keepForms(leaving: !$0) }
         .onReceive(coverage) { model.setCovered($0) }
     }
-    .measuringContainerWidth($measuredWidth)
-    .presentingEffects(model.effects)
+    .presentingEffects(model.effects, hasPanes: fillsSpace)
+  }
+
+  /// The screen's views, with its detail pane when it is a screen and not a section: a section's
+  /// detail is a full-screen cover.
+  @ViewBuilder
+  private func panes<Views: View>(@ViewBuilder _ views: @escaping () -> Views) -> some View {
+    let measured = ZStack(content: views).measuringContainerWidth($measuredWidth)
+    if fillsSpace {
+      DetailPanes(effects: model.effects, environment: screenEnvironment(width:)) { measured }
+    } else {
+      measured
+    }
+  }
+
+  /// Where the screen's form state is kept for a process that replaces this one; nil for a screen no new process
+  /// opens under the same name (``SavedFormsKey/names(fullScreen:isEntry:inHostStack:)``).
+  private var savedFormsSlot: SavedFormsSlot? {
+    let fullScreen = fillsSpace && !closesWhenHidden
+    let named = SavedFormsKey.names(
+      fullScreen: fullScreen, isEntry: entry != nil, inHostStack: stackLevel != nil)
+    guard named else { return nil }
+    let name = SavedFormsKey.name(
+      scope: opener?.savedStateScope ?? "", screen: screenId, params: params, entry: entry?.id)
+    return SavedFormsSlot(store: .shared, name: name)
   }
 
   /// Whether an entry of the host stack lies above the screen, as the stack changes.

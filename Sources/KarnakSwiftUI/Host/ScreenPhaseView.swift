@@ -4,7 +4,7 @@ import SwiftUI
 /// What a screen model shows now: the loading view, the content or the error view, shared by
 /// ``KarnakScreen`` and ``KarnakSection`` however their model is owned.
 struct ScreenPhaseView<Loading: View, Failure: View>: View {
-  @ObservedObject var model: ScreenModel
+  let model: ScreenModel
   let screenId: String
   /// Whether the content fills the space it is offered (a screen) or takes only its own size
   /// (a section).
@@ -23,7 +23,9 @@ struct ScreenPhaseView<Loading: View, Failure: View>: View {
     case .content(let screen):
       ResolvedScreenView(
         screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
-        onInput: { model.input($0) }, focus: model.effects.focus, measuresViewport: true,
+        onEvent: { model.event($0, payload: $1, byUser: $2, generation: $3) },
+        onInput: { model.input($0) }, onFloatingDismiss: { model.floatingDismissed($0, $1) },
+        focus: model.effects.focus, measuresViewport: true,
         fillsSpace: fillsSpace
       )
       .environment(\.karnakRowAnchors, model.gate.anchors)

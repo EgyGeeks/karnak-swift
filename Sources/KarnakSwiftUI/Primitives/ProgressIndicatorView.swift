@@ -26,6 +26,12 @@ struct ProgressIndicatorView: View {
   let color: Color
   /// The full ring or bar behind it; nil for none.
   let track: Color?
+  /// The arc's or the fill's gradient, which wins over `color`.
+  var colorPaint: PaintTarget?
+  /// The track's gradient, which wins over `track`.
+  var trackPaint: PaintTarget?
+  /// How `value` moves when a new tree changes it (`content.value`); nil to jump.
+  var valueTransition: ResolvedTransition?
   /// Reduce Motion as a test sets it; nil follows the system setting. `accessibilityReduceMotion` is read-only.
   private let reduceMotionOverride: Bool?
   /// The instant a test draws the indeterminate bar at, once; nil follows the clock.
@@ -36,18 +42,26 @@ struct ProgressIndicatorView: View {
 
   private var reduceMotion: Bool { reduceMotionOverride ?? systemReduceMotion }
 
-  init(_ progress: ResolvedProgress) {
+  init(_ progress: ResolvedProgress, valueTransition: ResolvedTransition? = nil) {
     self.init(
       kind: progress.kind, size: points(dp: progress.size),
       thickness: points(dp: progress.thickness),
       value: progress.value.map { CGFloat($0.floatValue) }, color: resolvedColor(progress.color),
-      track: progress.trackColor.map(resolvedColor))
+      track: progress.trackColor.map(resolvedColor),
+      colorPaint: progress.colorPaint.map { .of($0) },
+      trackPaint: progress.trackPaint.map { .of($0) },
+      valueTransition: valueTransition)
   }
 
   init(
     kind: KarnakCore.ProgressKind = .circular, size: CGFloat, thickness: CGFloat, value: CGFloat?,
-    color: Color, track: Color? = nil, reduceMotion: Bool? = nil, frozenAt: Date? = nil
+    color: Color, track: Color? = nil, colorPaint: PaintTarget? = nil,
+    trackPaint: PaintTarget? = nil,
+    valueTransition: ResolvedTransition? = nil, reduceMotion: Bool? = nil, frozenAt: Date? = nil
   ) {
+    self.colorPaint = colorPaint
+    self.trackPaint = trackPaint
+    self.valueTransition = valueTransition
     self.reduceMotionOverride = reduceMotion
     self.frozenAt = frozenAt
     self.kind = kind
@@ -68,18 +82,18 @@ struct ProgressIndicatorView: View {
   private var ring: some View {
     let circle = Circle().inset(by: thickness / 2)
     return ZStack {
-      if let track {
+      if let trackPaint {
+        painted(trackPaint) { circle.stroke(.black, lineWidth: thickness) }
+      } else if let track {
         circle.stroke(track, lineWidth: thickness)
       }
-      circle.trim(from: 0, to: value ?? Self.indeterminateRingSweep)
-        .stroke(color, lineWidth: thickness)
-        // A circle's path starts at the trailing point, so a quarter turn back starts at the top.
-        .rotationEffect(.degrees(-90))
+      painted(colorPaint) { arc().stroke(color, lineWidth: thickness) }
         .rotationEffect(.degrees(value == nil && turning ? 360 : 0))
     }
     // SwiftUI mirrors drawing in a right-to-left subtree; the ring turns clockwise everywhere.
     .environment(\.layoutDirection, .leftToRight)
     .frame(width: size, height: size)
+    .animation(valueAnimation, value: value)
     .animation(
       value == nil
         ? .linear(duration: Self.cycleSeconds(reduceMotion: reduceMotion)).repeatForever(
@@ -89,23 +103,48 @@ struct ProgressIndicatorView: View {
     .onAppear { turning = true }
   }
 
+  /// The arc of the ring, from the top, clockwise.
+  private func arc() -> some Shape {
+    // A circle's path starts at the trailing point, so a quarter turn back starts at the top.
+    Circle().inset(by: thickness / 2).trim(from: 0, to: value ?? Self.indeterminateRingSweep)
+      .rotation(.degrees(-90))
+  }
+
+  /// `content` as the paint's gradient seen through it, or `content` in its own color for a flat one.
+  @ViewBuilder
+  private func painted<Content: View>(
+    _ paint: PaintTarget?, @ViewBuilder _ content: () -> Content
+  ) -> some View {
+    if let paint {
+      PaintedFill(from: nil, to: paint, shape: NodeShape(radius: 0)).mask { content() }
+    } else {
+      content()
+    }
+  }
+
+  /// The move of `value`, none with Reduce Motion on.
+  private var valueAnimation: Animation? {
+    reduceMotion ? nil : valueTransition?.animation
+  }
+
   /// The bar is drawn into one canvas, so the moving segment can't reach outside its box (an offset
   /// view's frame would grow its ancestors' accessibility frames). An indeterminate one is redrawn
   /// every frame from the clock.
   @ViewBuilder
   private var bar: some View {
-    if value != nil {
-      canvas(phase: 0)
+    if let value {
+      Interpolated(value: value) { canvas(phase: 0, value: $0) }
+        .animation(valueAnimation, value: value)
     } else if let frozenAt {
-      canvas(phase: Self.phase(at: frozenAt, reduceMotion: reduceMotion))
+      canvas(phase: Self.phase(at: frozenAt, reduceMotion: reduceMotion), value: nil)
     } else {
       TimelineView(.animation) { timeline in
-        canvas(phase: Self.phase(at: timeline.date, reduceMotion: reduceMotion))
+        canvas(phase: Self.phase(at: timeline.date, reduceMotion: reduceMotion), value: nil)
       }
     }
   }
 
-  private func canvas(phase: CGFloat) -> some View {
+  private func canvas(phase: CGFloat, value: CGFloat?) -> some View {
     Canvas { context, canvasSize in
       var context = context
       if layoutDirection == .rightToLeft {
@@ -113,8 +152,17 @@ struct ProgressIndicatorView: View {
         context.scaleBy(x: -1, y: 1)
       }
       let full = CGRect(origin: .zero, size: canvasSize)
-      if let track { context.fill(Path(full), with: .color(track)) }
-      context.fill(Path(fillRect(in: full, phase: phase)), with: .color(color))
+      if let trackPaint {
+        trackPaint.frame().fill(Path(full), in: full, context: context)
+      } else if let track {
+        context.fill(Path(full), with: .color(track))
+      }
+      let fill = Path(fillRect(in: full, phase: phase, value: value))
+      if let colorPaint {
+        colorPaint.frame().fill(fill, in: full, context: context)
+      } else {
+        context.fill(fill, with: .color(color))
+      }
     }
     .frame(maxWidth: .infinity)
     .frame(height: size)
@@ -122,7 +170,7 @@ struct ProgressIndicatorView: View {
 
   /// What the fill covers in `bar`: `value` of the width from the start edge, or the segment at `phase`
   /// of its way across, clipped to the bar.
-  private func fillRect(in bar: CGRect, phase: CGFloat) -> CGRect {
+  private func fillRect(in bar: CGRect, phase: CGFloat, value: CGFloat?) -> CGRect {
     if let value {
       return CGRect(x: 0, y: 0, width: bar.width * value, height: bar.height)
     }

@@ -20,35 +20,52 @@ struct NodeView: View, Equatable {
   }
 
   var body: some View {
+    drawn.floatingAnchor(of: node)
+  }
+
+  @ViewBuilder
+  private var drawn: some View {
     let registration = NodeRenderers.registration(for: node)
-    // Containers and the root draw `drawnNode(_:)`, so custom and unsupported nodes don't reach here.
+    // Containers and the root draw `drawnNode(_:)`, so unsupported nodes don't reach here.
     if registration.drawsOwnBox {
       // A button draws its box for its interaction state itself, and an input draws its box around its parts; its
       // control is the accessibility element.
       registration.draw(node, placement)
     } else if registration.isDrawn {
-      let drawn = registration.draw(node, placement)
-        .nodeStyle(
-          node, placement: placement, contentPosition: registration.contentPosition(node),
-          content: registration.boxContent(node))
-      if registration.reportsFrame || (reportsLabelled && node.semantics.label != nil) {
-        // A list or a carousel reports its whole box, its own padding included, as its rows do; so does a labelled
-        // node in a carousel's item.
-        drawn.modifier(FrameReport(key: node.key.value))
-      } else if node.semantics.label != nil {
-        // A labelled node reports its box too: the conformance runner measures a labelled container by its
-        // layout, as its accessibility frame is the union of its accessible children.
-        drawn.modifier(FrameReport(key: node.key.value))
+      if node.interactive {
+        // A node with interaction styles of its own (`style.hovered`, ...) is drawn as `styleFor` of what it tracks.
+        InteractionTracking(node: node) { shown in styled(shown, registration) }
       } else {
-        drawn
+        styled(node, registration)
       }
+    }
+  }
+
+  /// `node` drawn with its common style, reporting its frame where the root or a carousel needs it.
+  @ViewBuilder
+  private func styled(_ node: ResolvedNode, _ registration: NodeRegistration) -> some View {
+    let styled = registration.draw(node, placement)
+      .nodeStyle(
+        node, placement: placement, contentPosition: registration.contentPosition(node),
+        content: registration.boxContent(node))
+    if registration.reportsFrame || (reportsLabelled && node.semantics.label != nil) {
+      // A list or a carousel reports its whole box, its own padding included, as its rows do; so does a labelled
+      // node in a carousel's item.
+      styled.modifier(FrameReport(key: node.key.value))
+    } else if node.semantics.label != nil {
+      // A labelled node reports its box too: the conformance runner measures a labelled container by its
+      // layout, as its accessibility frame is the union of its accessible children.
+      styled.modifier(FrameReport(key: node.key.value))
+    } else {
+      styled
     }
   }
 }
 
 /// Draws `nodes` in order, keyed by `NodeKey.value`, as the direct subviews of a container's
-/// layout, each with the inputs the row, column and flow layouts read. Custom nodes draw their
-/// fallback and unsupported nodes are skipped (`drawnNode(_:)`). The key is the row's identity,
+/// layout, each with the inputs the row, column and flow layouts read. Unsupported nodes are
+/// skipped, and a custom node the host doesn't draw gives its place to its fallback
+/// (``ComponentRegistry/drawnNode(_:)``). The key is the row's identity,
 /// so a reordered or grown list keeps each row's state; the roots of `repeat` rows report their
 /// frames for scroll anchoring (``RowAnchors``).
 struct NodeChildren: View {
@@ -58,9 +75,10 @@ struct NodeChildren: View {
   let parent: String
   /// How the parent places each child.
   let placement: (ResolvedNode) -> ChildPlacement
+  @Environment(\.karnakComponents) private var components
 
   var body: some View {
-    ForEach(nodes.compactMap(drawnNode), id: \.key.value) { child in
+    ForEach(nodes.compactMap { components.drawnNode($0) }, id: \.key.value) { child in
       NodeView(node: child, placement: placement(child)).equatable()
         .rowAnchor(child.key.value, parent: parent)
         .karnakLayoutInput(KarnakLayoutInput(child))

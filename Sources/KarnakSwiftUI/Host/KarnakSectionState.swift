@@ -1,41 +1,58 @@
 import Combine
+import Observation
 import SwiftUI
 
 /// A section of a native screen whose state the host keeps (ADR 0028, D1, "Sections in a native
-/// screen"): creating it opens the section's document and starts its data sources, and
-/// ``KarnakSection`` only draws it. It lives as long as its owner, not as long as a lazy list row,
+/// screen"): ``open()`` opens the section's document and starts its data sources, and
+/// ``KarnakSection`` only draws it (and opens it, when nothing did first). It lives as long as its owner, not as long as a lazy list row,
 /// so a section that scrolls out and back shows its values at once, and its sources load when the
 /// screen opens, not when the row first appears.
 ///
-/// Hold it where the screen's state lives, with `@StateObject` (iOS 16 has no `@Observable`):
+/// It is `@Observable`: hold it where the screen's state lives, with `@State`. Creating it costs nothing, because
+/// `State(initialValue:)` builds one on every `init` of the holding view and keeps only the first; call ``open()``
+/// when the screen appears:
 ///
 /// ```swift
 /// struct HomeView: View {
-///   @StateObject private var promos: KarnakSectionState
+///   @State private var promos: KarnakSectionState
 ///   init(client: KarnakSwiftClient) {
-///     _promos = StateObject(wrappedValue: KarnakSectionState("home_promos", client: client))
+///     _promos = State(initialValue: KarnakSectionState("home_promos", client: client))
 ///   }
 ///   var body: some View {
 ///     List { KarnakSection(state: promos) }
+///       .onAppear { promos.open() }
 ///   }
 /// }
 /// ```
 ///
 /// Releasing the state closes the section (queued and running sources are cancelled), and
 /// ``close()`` does it at once.
+@Observable
 @MainActor
-public final class KarnakSectionState: ObservableObject {
+public final class KarnakSectionState {
   let id: String
   let model = ScreenModel()
+  private let params: [String: Any]
+  private let opener: any ScreenOpening
+  private var isOpen = false
 
-  /// Opens section `id` with `params` (JSON values only) on `client`. The section draws for the
-  /// device's color scheme and direction until a ``KarnakSection`` shows it and says its own size.
+  /// Prepares section `id` with `params` (JSON values only) on `client`; nothing opens until ``open()`` or a
+  /// ``KarnakSection`` that shows it. The section draws for the device's color scheme and direction until a
+  /// ``KarnakSection`` shows it and says its own size.
   public convenience init(_ id: String, params: [String: Any] = [:], client: KarnakSwiftClient) {
     self.init(id, params: params, opener: client)
   }
 
   init(_ id: String, params: [String: Any], opener: any ScreenOpening) {
     self.id = id
+    self.params = params
+    self.opener = opener
+  }
+
+  /// Opens the section's document and starts its data sources. Calling it again does nothing.
+  public func open() {
+    guard !isOpen else { return }
+    isOpen = true
     // The device's own traits, so sources that bind `context.colorScheme` load once for the right one.
     let dark = UITraitCollection.current.userInterfaceStyle == .dark
     let rtl = UIApplication.shared.userInterfaceLayoutDirection == .rightToLeft
@@ -54,8 +71,8 @@ public final class KarnakSectionState: ObservableObject {
 }
 
 /// Draws a ``KarnakSectionState``: reports the container's width, color scheme and direction to
-/// the section, and follows the host stack and the app's lifecycle. It never opens or closes the
-/// section.
+/// the section, and follows the host stack and the app's lifecycle. It opens the section when nothing has, and
+/// never closes it.
 struct HoistedSectionView<Loading: View, Failure: View>: View {
   let state: KarnakSectionState
   let loading: (() -> Loading)?
@@ -78,6 +95,8 @@ struct HoistedSectionView<Loading: View, Failure: View>: View {
     // swiftlint:disable:next redundant_discardable_let
     let _ = model.updateHostCallbacks(
       hostCallbacks.withDefault(navigation: stackLevel.map(karnakNavigationTarget)))
+    // swiftlint:disable:next redundant_discardable_let
+    let _ = state.open()
     ZStack {
       ScreenPhaseView(
         model: model, screenId: state.id, fillsSpace: false, loading: loading, failure: failure,

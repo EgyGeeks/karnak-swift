@@ -49,7 +49,7 @@ struct CarouselDots: View {
       width = $0
     }
     .onAppear { report(shown) }
-    .onChange(of: shown) { report($0) }
+    .onChange(of: shown) { _, latest in report(latest) }
   }
 
   /// What the dots show now, which the observer is told each time it changes.

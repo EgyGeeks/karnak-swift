@@ -23,7 +23,8 @@ struct ButtonFace: View {
   init(button: ResolvedButton) {
     self.init(
       icon: button.icon, label: button.label, iconAtStart: button.iconPosition == .start,
-      iconGap: points(dp: button.iconGap), loading: button.loading.map(ProgressIndicatorView.init))
+      iconGap: points(dp: button.iconGap), loading: button.loading.map { ProgressIndicatorView($0) }
+    )
   }
 
   init(

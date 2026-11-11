@@ -21,8 +21,14 @@ struct ResolvedScreenView: View {
   /// Called with the handle of a node with `actions.appear` each time at least half of it is
   /// inside the viewport. The engine runs the actions once per node.
   var onAppear: (ActionHandle) -> Void = { _ in }
+  /// Called with a node's settled event (a carousel's `pageChange`): its handle, the payload, whether a person caused
+  /// it, and the generation of the tree it was raised on.
+  var onEvent: (ActionHandle, KarnakValue, Bool, Int64) -> Void = { _, _, _, _ in }
   /// Called with each input's edits, toggles, picks, focus changes and keyboard actions (`InputEvent`).
   var onInput: (InputEvent) -> Void = { _ in }
+  /// Called when a floating view ends for a reason the renderer decides (its timer, a swipe, a tap outside, its anchor
+  /// gone): the view's key and why. Without it the screen draws no floating layer.
+  var onFloatingDismiss: ((String, FloatingDismissReason) -> Void)?
   /// The engine's focus requests for this screen's inputs; without one the view keeps its own, which hears none.
   var focus: InputFocus?
   /// Receives renderer diagnostics, such as a node type this renderer can't draw.
@@ -48,9 +54,14 @@ struct ResolvedScreenView: View {
   /// What the window shows of this view: the viewport of its nodes' appearances.
   @State private var viewport: CGRect?
 
+  /// The tooltip a node of this screen shows.
+  @State private var tooltips = TooltipState()
+
   var body: some View {
     actions.handler = onAction
     actions.appearHandler = onAppear
+    actions.eventHandler = onEvent
+    actions.generation = screen.generation
     inputs.handler = onInput
     return ZStack(alignment: .topLeading) {
       if let root = screen.root.flatMap(drawnNode) {
@@ -65,6 +76,11 @@ struct ResolvedScreenView: View {
     .background {
       if measuresViewport { ViewportProbe { viewport = $0 } }
     }
+    // Inside the environment below, so a floating view reads the same actions, inputs and direction as the content.
+    .floatingLayer(screen.floating, dismiss: onFloatingDismiss)
+    // Over the floating layer, so a floating view's node shows its tooltip above it too.
+    .tooltipLayer()
+    .environment(\.karnakTooltips, tooltips)
     .environment(\.karnakActions, actions)
     .environment(\.karnakInputs, inputs)
     .environment(\.karnakInputFocus, focus ?? ownFocus)

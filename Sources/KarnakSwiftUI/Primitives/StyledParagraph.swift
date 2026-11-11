@@ -25,19 +25,24 @@ struct StyledParagraph {
 
   /// - Parameter postScriptName: The registered font of a theme face, if it is ready. Faces
   ///   without one draw in the system font until the registry has loaded them.
+  /// - Parameters:
+  ///   - nowMillis: The device clock for the countdown runs: each one reads the time left from it. Without it a
+  ///     countdown run keeps its own text.
+  ///   - layer: Which runs are drawn: all of them, or one of the gradient runs the paragraph paints over its base.
   init(
     _ paragraph: ResolvedParagraph, traits: UITraitCollection,
-    postScriptName: (ResolvedFontFace) -> String? = { _ in nil }
+    postScriptName: (ResolvedFontFace) -> String? = { _ in nil },
+    nowMillis: Int64? = nil, layer: TextLayer = .base
   ) {
     func name(_ font: ResolvedFont) -> String? { font.face.flatMap(postScriptName) }
     var text = AttributedString()
     var links: [ActionHandle] = []
     var runPoints: [CGFloat] = []
-    for run in paragraph.runs {
+    for (index, run) in paragraph.runs.enumerated() {
       let size = textPoints(sp: run.font.size, traits: traits)
-      var part = AttributedString(run.text)
+      var part = AttributedString(Self.text(of: run, at: nowMillis))
       part.font = resolvedFont(run.font, scaledPoints: size, postScriptName: name(run.font))
-      part.foregroundColor = resolvedColor(run.color)
+      part.foregroundColor = layer.color(of: run, at: index)
       part.tracking = tracking(em: run.font.letterSpacing, fontPoints: size)
       if run.underline { part.underlineStyle = .single }
       if run.strikethrough { part.strikethroughStyle = .single }
@@ -76,6 +81,28 @@ struct StyledParagraph {
   }
 
   private static let linkScheme = "karnak-link"
+
+  /// The text a run draws: its countdown's time left at `nowMillis`, or its own text.
+  static func text(of run: TextRun, at nowMillis: Int64?) -> String {
+    guard let countdown = run.countdown, let nowMillis else { return run.text }
+    return countdown.textAt(deviceNowEpochMillis: nowMillis)
+  }
+}
+
+/// Which runs of a paragraph one `Text` draws: a paragraph with gradient runs is drawn as its base, where those runs
+/// are clear, and one layer per gradient run, masked by that run alone (`docs/renderer-contract.md`, Paints).
+enum TextLayer: Equatable {
+  /// The paragraph with its gradient runs clear.
+  case base
+  /// Only the gradient run at this index, opaque, for the gradient to show through.
+  case gradientRun(Int)
+
+  func color(of run: TextRun, at index: Int) -> Color {
+    switch self {
+    case .base: run.paint == nil ? resolvedColor(run.color) : .clear
+    case .gradientRun(let only): only == index ? .black : .clear
+    }
+  }
 }
 
 /// The height of one line of the font named `postScriptName` (the system font when nil or

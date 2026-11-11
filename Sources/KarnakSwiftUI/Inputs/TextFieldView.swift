@@ -9,6 +9,8 @@ import UIKit
 /// - **Value.** The field holds the native text in local state and sends each edit as `valueChange`; ``TextSync``
 ///   decides when the tree's value is written back. While the input is read-only (a submission in flight) the same
 ///   field stays, so focus, the keyboard and the accessibility element survive, and every edit is undone at once.
+/// - **Display mask.** With `mask` the native text is the mask's text for the value and each edit is read with the
+///   mask (``FieldText``; `docs/renderer-contract.md`, Display masks); the value sent never holds a literal.
 /// - **Keyboard.** `.keyboardType`, `.textContentType`, `.submitLabel` from the resolved `keyboard`, `autofill` and
 ///   `imeAction`, and `.onSubmit` sends `imeAction`: SwiftUI ends editing on submit, so for `go`, `search` and `send`
 ///   the field takes its focus back (it is read-only, still focused, while its form is in flight) and `done` lets the
@@ -23,6 +25,7 @@ struct TextFieldView: View {
   let placement: ChildPlacement
   @State private var text: String
   @State private var sync: TextSync
+  @State private var caret: CaretMove?
   @State private var hovered = false
   @FocusState private var focused: Bool
   @Environment(\.karnakInputs) private var inputs
@@ -32,8 +35,8 @@ struct TextFieldView: View {
   init(field: ResolvedTextField, placement: ChildPlacement) {
     self.field = field
     self.placement = placement
-    _text = State(initialValue: field.value)
-    _sync = State(initialValue: TextSync(field.value))
+    _text = State(initialValue: FieldText(mask: field.mask).shows(field.value))
+    _sync = State(initialValue: TextSync(field.value, edits: Int(field.edits)))
   }
 
   var body: some View {
@@ -56,10 +59,17 @@ struct TextFieldView: View {
       .onTapGesture { if drawn.enabled { focused = true } }
     }
     .onHover { hovered = $0 }
-    .onChange(of: text) { edited($0) }
-    .onChange(of: field.value) { apply(sync.treeValue($0, shown: text)) }
-    .onChange(of: field.acceptsEdits) {
-      if !$0 { apply(sync.locked(tree: field.value, shown: text)) }
+    .onChange(of: text) { _, typed in edited(typed) }
+    .onChange(of: tree) { _, tree in
+      apply(sync.treeValue(tree, readOnly: !field.acceptsEdits, shown: shownValue))
+    }
+    // A refresh that changes the mask alone: the text is drawn again with the new one.
+    .onChange(of: field.mask?.pattern) { _, _ in
+      let shown = fieldText.shows(field.value)
+      if text != shown { text = shown }
+    }
+    .onChange(of: field.acceptsEdits) { _, accepts in
+      if !accepts { apply(sync.locked(tree: tree, shown: shownValue)) }
     }
     .reportsFocus(field.key, focused, to: inputs)
     .takesFocusRequests(field.key.value, focus: focus, focused: $focused)
@@ -75,6 +85,11 @@ struct TextFieldView: View {
       .autocorrectionDisabled(drawn.secure || drawn.keyboard != .text)
       .submitLabel(drawn.imeAction.map(submitKey(for:)) ?? .return)
       .onSubmit { submitted(drawn.imeAction) }
+      .modifier(
+        KeypadActionKey(
+          keyboard: drawn.keyboard, imeAction: drawn.imeAction, focused: focused,
+          press: pressedKeypadKey)
+      )
       .focused($focused)
       .disabled(!drawn.enabled)
       .inputAccessibility(drawn)
@@ -87,10 +102,20 @@ struct TextFieldView: View {
     } else if drawn.maxLines > 1 {
       TextField("", text: $text, axis: .vertical)
         .lineLimit(Int(drawn.minLines)...Int(drawn.maxLines))
+    } else if drawn.mask != nil, #available(iOS 18.0, *) {
+      CaretTextField(text: $text, caret: caret)
     } else {
       TextField("", text: $text)
     }
   }
+
+  private var fieldText: FieldText { FieldText(mask: field.mask) }
+
+  /// The tree's value and the engine's count of the field's edits it was resolved with.
+  private var tree: TextSync.Tree { TextSync.Tree(value: field.value, edits: Int(field.edits)) }
+
+  /// The value the native text holds now: without a mask's literals.
+  private var shownValue: String { fieldText.value(of: text) }
 
   /// The keyboard's action key: sends `imeAction`, then, for a key that keeps focus, puts it back where SwiftUI's
   /// submit ended editing, so a field that is read-only while its form is in flight is still the one the person is in.
@@ -102,18 +127,34 @@ struct TextFieldView: View {
     if keepsFocus(afterActionKey: action), focus.latestMove == before { focused = true }
   }
 
+  /// The keypad bar's button (``KeypadActionKey``): the action key as the return key sends it, then
+  /// ``endsEditing(afterKeypadKey:focusMoved:)``.
+  private func pressedKeypadKey(_ action: ImeAction) {
+    let before = focus.latestMove
+    submitted(action)
+    if endsEditing(afterKeypadKey: action, focusMoved: focus.latestMove != before) {
+      focused = false
+    }
+  }
+
+  /// The native text changed to `typed`. A masked field's text is the mask's (it holds the length limit too): the
+  /// field takes the text and the caret the mask gives, and the value without literals is the edit.
   private func edited(_ typed: String) {
+    let maxLength = field.maxLength.map { Int($0.int32Value) }
+    let edit = fieldText.read(typed, after: sync.agreed, maxLength: maxLength)
+    if edit.text != typed { text = edit.text }
+    if let offset = edit.caret { caret = CaretMove(offset: offset, edit: (caret?.edit ?? 0) + 1) }
     apply(
       sync.edited(
-        typed, tree: field.value, accepts: field.acceptsEdits,
-        maxLength: field.maxLength.map { Int($0.int32Value) }))
+        edit.value, tree: field.value, accepts: field.acceptsEdits,
+        maxLength: field.mask == nil ? maxLength : nil))
   }
 
   private func apply(_ outcome: TextSync.Outcome) {
     switch outcome {
     case .keep: break
     case .send(let value): inputs.send(.valueChange(field.key, value))
-    case .replace(let value): text = value
+    case .replace(let value): text = fieldText.shows(value)
     }
   }
 }
@@ -134,7 +175,7 @@ struct InputValueStyle: ViewModifier {
 private struct ObservedValueStyle: ViewModifier {
   let style: InputTextStyle
   let multiline: Bool
-  @ObservedObject var fonts: ThemeFontRegistry
+  let fonts: ThemeFontRegistry
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   func body(content: Content) -> some View {

@@ -6,11 +6,14 @@ enum KarnakGridColumns: Equatable {
   case fixed(Int)
   /// As many as the measured width fits; `unboundedColumns` where there is no width.
   case adaptive(minItemWidth: CGFloat, unboundedColumns: Int)
+  /// One column per track, each with its own width.
+  case tracks([KarnakGridTrack])
 }
 
 /// Lays out a `grid` (`docs/renderer-contract.md`, Display primitives, `grid`): equal tracks from
-/// the proposed width, children placed row by row, each covering its `span`, every row as tall as
-/// its tallest item, and every item at the top start of its cells unless it aligns itself.
+/// the proposed width, or the widths of its `tracks` (``GridTrackSizer``), children placed row by
+/// row or in their areas, each covering its `span` and `rowSpan`, every row as tall as its
+/// tallest item, and every item at the top start of its cells unless it aligns itself.
 /// SwiftUI's `Grid` can't change its column count with the width, so this is a custom layout.
 ///
 /// The grid is as wide as the width it is proposed. Where there is none the tracks are all as
@@ -36,6 +39,8 @@ struct KarnakGridLayout: Layout, Equatable {
     switch columns {
     case .fixed(let count):
       return count
+    case .tracks(let tracks):
+      return tracks.count
     case .adaptive(let minItemWidth, let unboundedColumns):
       guard let width else { return unboundedColumns }
       return adaptiveColumnCount(
@@ -65,7 +70,8 @@ struct KarnakGridLayout: Layout, Equatable {
     for index in subviews.indices {
       let cell = measured.cells[index]
       let input = subviews[index][KarnakLayoutInputKey.self]
-      let free = measured.tracks.width(span: cell.span) - measured.occupied[index].width
+      let free =
+        measured.tracks.width(column: cell.column, span: cell.span) - measured.occupied[index].width
       let horizontal = (input.align ?? .start).offset(free: free)
       let inset = (measured.occupied[index].width - measured.drawn[index].width) / 2
       let vertical = (measured.occupied[index].height - measured.drawn[index].height) / 2

@@ -4,7 +4,8 @@ import SwiftUI
 /// An icon in its square box (`docs/renderer-contract.md`, `ResolvedIcon`): the engine's parsed
 /// vector scaled from its viewport to the box and filled with the tint, each path with its own
 /// fill rule. A missing vector draws an empty box of the same size. Icons are decorative, as
-/// the node's semantics name the control, and are never mirrored in RTL.
+/// the node's semantics name the control. The view never mirrors one in RTL: the engine hands the
+/// flipped vector of a theme icon with `mirrorInRtl`.
 struct VectorIconView: View {
   /// The icon's paths, converted once.
   let glyph: VectorGlyph?
@@ -12,8 +13,11 @@ struct VectorIconView: View {
   let size: CGFloat
   /// The fill color.
   let tint: Color
+  /// The tint's gradient or mesh, laid over the whole box, which wins over `tint`.
+  var tintPaint: PaintTarget?
 
   init(_ icon: ResolvedIcon) {
+    tintPaint = icon.tintPaint.map { .of($0) }
     glyph = icon.vector.flatMap(VectorGlyph.init)
     size = points(dp: icon.size)
     tint = resolvedColor(icon.tint)
@@ -21,18 +25,31 @@ struct VectorIconView: View {
 
   var body: some View {
     ZStack {
-      if let glyph {
-        ForEach(glyph.paths.indices, id: \.self) { index in
-          let path = glyph.paths[index]
-          ViewportShape(path: path.path, viewport: glyph.viewport)
-            .fill(tint, style: FillStyle(eoFill: path.evenOdd))
-        }
+      if let tintPaint {
+        PaintedFill(from: nil, to: tintPaint, shape: NodeShape(radius: 0))
+          .mask { glyphShapes(.black) }
+      } else {
+        glyphShapes(tint)
       }
     }
-    // SwiftUI mirrors drawing in a right-to-left subtree; icons keep their drawn direction.
+    // SwiftUI mirrors drawing in a right-to-left subtree; the engine's vector is already the one to draw.
     .environment(\.layoutDirection, .leftToRight)
     .frame(width: size, height: size)
     .accessibilityHidden(true)
+  }
+}
+
+extension VectorIconView {
+  /// The icon's paths filled with `color`.
+  @ViewBuilder
+  fileprivate func glyphShapes(_ color: Color) -> some View {
+    if let glyph {
+      ForEach(glyph.paths.indices, id: \.self) { index in
+        let path = glyph.paths[index]
+        ViewportShape(path: path.path, viewport: glyph.viewport)
+          .fill(color, style: FillStyle(eoFill: path.evenOdd))
+      }
+    }
   }
 }
 

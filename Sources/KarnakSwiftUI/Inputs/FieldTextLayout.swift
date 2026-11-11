@@ -8,6 +8,7 @@ import SwiftUI
 ///   screen's own for the others, whose text the platform lays out from its first strong character.
 /// - ``alignment`` puts the lines at the screen's start edge whatever the first strong character is: `.leading` of the
 ///   screen, which for a left-to-right text in a right-to-left screen is `.trailing` in the text's own direction.
+///   The edge is the layout's, never the content's: an English name in an Arabic screen starts at the right.
 ///
 /// The placeholder takes the same layout as the value it stands for.
 struct FieldTextLayout: Equatable {
@@ -38,5 +39,18 @@ extension View {
   /// Lays a text field's text out as `layout` says: its direction, and where its lines start.
   func fieldText(_ layout: FieldTextLayout) -> some View {
     environment(\.layoutDirection, layout.direction).multilineTextAlignment(layout.alignment)
+      .alignsTextByLayout()
+  }
+
+  /// Makes `.leading` the layout's start edge whatever the text's first strong character is (#2099). From iOS 26 a
+  /// text aligns by its own writing direction unless told so; before it, the layout's direction was the only rule.
+  /// A placeholder of several lines takes it too, so its lines start where the value's will.
+  @ViewBuilder
+  func alignsTextByLayout() -> some View {
+    if #available(iOS 26.0, *) {
+      multilineTextAlignment(strategy: .layoutBased)
+    } else {
+      self
+    }
   }
 }

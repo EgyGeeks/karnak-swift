@@ -24,12 +24,14 @@ struct ChildPlacement: Equatable {
   static let root = ChildPlacement(fillsHost: true)
 
   /// A child of a row (`axis` horizontal) or a column or form (`axis` vertical) that `stretches`
-  /// children on its cross axis. A weighted child takes its allocation on the main axis, and a
-  /// child that wraps on the cross axis is stretched.
+  /// children on its cross axis. A weighted child takes its allocation on the main axis, a flexed
+  /// child of a wrapping row its line's, and a child that wraps on the cross axis is stretched.
   static func linear(_ node: ResolvedNode, axis: Axis, stretches: Bool) -> ChildPlacement {
     let layout = node.layout
     var accepts: Axis.Set = []
     if layout.weight != nil { accepts.insert(axis == .horizontal ? .horizontal : .vertical) }
+    // A flexed child of a wrapping row takes the width its line gives it.
+    if layout.flex != nil { accepts.insert(.horizontal) }
     let cross = axis == .horizontal ? layout.height : layout.width
     let stretching = layout.align.map { $0 == .stretch } ?? stretches
     if stretching && cross is KarnakSizeWrap {
@@ -74,7 +76,15 @@ extension KarnakLayoutInput {
       fixedWidth: layout.width is KarnakSizeFixed,
       align: layout.align.map(crossAlignment),
       span: layout.span.map { Int(truncating: $0) } ?? 1,
-      fillsHeight: layout.height is KarnakSizeFill)
+      rowSpan: Int(layout.rowSpan),
+      gridArea: layout.gridArea.map {
+        KarnakGridCell(
+          row: Int($0.row), column: Int($0.column), span: Int($0.span), rowSpan: Int($0.rowSpan))
+      },
+      fillsHeight: layout.height is KarnakSizeFill,
+      flex: layout.flex.map {
+        KarnakFlex(grow: CGFloat($0.grow), shrink: CGFloat($0.shrink), basis: bound($0.basis))
+      })
   }
 }
 

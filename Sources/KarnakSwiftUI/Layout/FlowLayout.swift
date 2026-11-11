@@ -6,6 +6,7 @@ struct KarnakFlowLayout: Layout, Equatable {
   var spacing: CGFloat = 0
   var arrangement: KarnakArrangement = .start
   var alignment: KarnakCrossAlignment = .start
+  var alignContent: KarnakAlignContent = .start
 
   func makeCache(subviews: Subviews) -> FlowLayoutCache { FlowLayoutCache() }
 
@@ -29,8 +30,12 @@ struct KarnakFlowLayout: Layout, Equatable {
     cache: inout FlowLayoutCache
   ) {
     let measured = measurement(proposal: proposal, subviews: subviews, cache: &cache)
-    var top = bounds.minY
-    for line in measured.lines {
+    let spread = alignContent.distribution(
+      count: measured.lines.count, free: bounds.height - measured.size.height)
+    var top = bounds.minY + spread.leading
+    for measuredLine in measured.lines {
+      var line = measuredLine
+      line.height += spread.grow
       let distribution = arrangement.distribution(
         count: line.indices.count, free: bounds.width - line.width)
       var leading = bounds.minX + distribution.leading
@@ -50,7 +55,7 @@ struct KarnakFlowLayout: Layout, Equatable {
           anchor: .topLeading, proposal: ProposedViewSize(drawn))
         leading += measured.occupied[index].width + spacing + distribution.gap
       }
-      top += line.height + spacing
+      top += line.height + spacing + spread.gap
     }
   }
 
@@ -58,7 +63,8 @@ struct KarnakFlowLayout: Layout, Equatable {
     proposal: ProposedViewSize, subviews: Subviews, cache: inout FlowLayoutCache
   ) -> FlowMeasurement {
     cache.measure(configuration: self, proposal: proposal) {
-      FlowMeasurement(subviews: subviews, width: proposal.width.finite, spacing: spacing)
+      FlowMeasurement(
+        subviews: subviews, width: proposal.width.finite, spacing: spacing, hugsWidth: wrapsWidth)
     }
   }
 }

@@ -38,6 +38,9 @@ protocol ScreenSession: AnyObject {
   func click(_ handle: ActionHandle)
   /// Reports that the node whose `actions.appear` is `handle` is at least half visible.
   func appear(_ handle: ActionHandle)
+  /// Reports the settled `event` of the node whose trigger is `handle` (`pageChange`), raised on the tree of
+  /// `generation`, and whether a person caused it.
+  func event(_ handle: ActionHandle, payload: KarnakValue, byUser: Bool, generation: Int64)
   /// The input `key` now holds the text or the picked option `value` (`nil`: no selection).
   func valueChange(_ key: NodeKey, _ value: String?)
   /// The checkbox or switch `key` was toggled to `checked`: the Boolean `valueChange`, named apart for Swift.
@@ -60,6 +63,10 @@ protocol ScreenSession: AnyObject {
   /// The toast, dialog or sheet `effectId` is off screen for any reason: sent once, after a
   /// dialog's ``dialogButton(_:_:)``.
   func effectDismissed(_ effectId: String)
+  /// The floating view `key` (`ResolvedFloating.key`) ended for `reason`, which the renderer decided: its timer ran out,
+  /// the person swiped it or tapped outside it, or its anchor left the screen (ADR 0038, D7). A key that is no longer
+  /// shown is ignored, so a late report is harmless.
+  func floatingDismissed(_ key: String, _ reason: FloatingDismissReason)
   /// Tells the instance whether its screen is in the foreground: with `false` it stops its data
   /// streams and keeps their values, with `true` they start again (`ScreenController.setForeground`).
   func setForeground(_ foreground: Bool)
@@ -86,6 +93,7 @@ extension ScreenSession {
   func imeAction(_ key: NodeKey) {}
   func saveState() -> String? { nil }
   func restoreState(_ saved: String) {}
+  func floatingDismissed(_ key: String, _ reason: FloatingDismissReason) {}
 
   /// Sends one input event to the instance.
   func input(_ event: InputEvent) {
@@ -118,11 +126,14 @@ protocol ScreenOpening: AnyObject {
   /// Whether the entry `entryId` belongs to a flow that is not running: the host restored it
   /// with its back stack after process death, and the flow instance died (ADR 0017, D13).
   func isOrphanedFlowEntry(_ entryId: String) -> Bool
+  /// What tells this opener's saved state from another's in the same app: its server and client key.
+  var savedStateScope: String { get }
 }
 
 extension ScreenOpening {
   func openFlow(_ request: FlowRequest) throws -> (any FlowSession)? { nil }
   func isOrphanedFlowEntry(_ entryId: String) -> Bool { false }
+  var savedStateScope: String { "" }
 }
 
 /// An overlay's stack as the views use it: the entries to draw, and the report of a dismissal.
@@ -231,6 +242,10 @@ final class ControllerSession: ScreenSession {
     controller.appear(handle: handle)
   }
 
+  func event(_ handle: ActionHandle, payload: KarnakValue, byUser: Bool, generation: Int64) {
+    controller.event(handle: handle, payload: payload, byUser: byUser, generation: generation)
+  }
+
   func setHostActions(_ actions: HostActions) {
     controller.setHostActions(actions: actions)
   }
@@ -279,6 +294,10 @@ final class ControllerSession: ScreenSession {
 
   func effectDismissed(_ effectId: String) {
     controller.effectDismissed(effectId: effectId)
+  }
+
+  func floatingDismissed(_ key: String, _ reason: FloatingDismissReason) {
+    controller.floatingDismissed(key: key, reason: reason)
   }
 
   func setForeground(_ foreground: Bool) {

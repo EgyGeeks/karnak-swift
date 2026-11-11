@@ -42,12 +42,12 @@ struct SheetRequest: Identifiable {
   let screen: any ScreenSession
 }
 
-/// An overlay the engine asked for (`open_screen` with `presentation` `modal` or `sheet`): a
-/// stack the engine owns and the renderer draws with a `NavigationStack` of its own.
+/// An overlay the engine asked for (`open_screen` with `presentation` `modal`, `sheet` or
+/// `detail`): a stack the engine owns and the renderer draws with a `NavigationStack` of its own.
 struct OverlayRequest {
   let id: String
   let generation: Int64
-  /// `sheet` for a bottom sheet, `modal` for a full-screen cover.
+  /// `sheet` for a bottom sheet, `modal` for a full-screen cover, `detail` for a detail pane.
   let presentation: KarnakPresentation
   let stack: any StackSession
 }

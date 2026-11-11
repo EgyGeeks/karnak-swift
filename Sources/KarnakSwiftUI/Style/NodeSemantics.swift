@@ -131,8 +131,12 @@ extension AccessibilitySemantics {
   /// The semantics of a resolved node: its own, and for a `progress` the progress it reports
   /// (`docs/renderer-contract.md`, Display primitives): a whole percent, or none while indeterminate,
   /// which the system's progress view reads as in progress.
+  /// A tooltip is read after the hint, as the node's description (`docs/renderer-contract.md`, Tooltips and cursors).
   init(_ node: ResolvedNode) {
     self.init(node.semantics)
+    if let tooltip = node.layout.tooltip?.text {
+      hint = [hint, tooltip].compactMap { $0 }.joined(separator: ", ")
+    }
     guard let progress = node as? ResolvedProgressNode else { return }
     self.progress = ProgressSemantics(progress.progress.value?.floatValue)
   }

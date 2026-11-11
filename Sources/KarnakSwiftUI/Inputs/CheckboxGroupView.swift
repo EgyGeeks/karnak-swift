@@ -22,9 +22,9 @@ struct CheckboxGroupView: View {
         .accessibilityElement(children: .contain)
         .inputAccessibility(drawn)
     }
-    .onChange(of: focusedOption != nil) {
-      inputs.send(.focusChange(group.key, $0))
-      if $0 { focus.moved(to: group.key.value) }
+    .onChange(of: focusedOption != nil) { _, isFocused in
+      inputs.send(.focusChange(group.key, isFocused))
+      if isFocused { focus.moved(to: group.key.value) }
     }
     .onReceive(focus.moves) { if $0 != group.key.value { focusedOption = nil } }
     .onReceive(focus.requests) { key in
@@ -94,17 +94,13 @@ private struct CheckboxOptionView: View {
   }
 }
 
-/// The accessibility traits of a checkbox option: the toggle trait where the system has it (iOS 17), and selected while
-/// picked, which VoiceOver reads as checked on every version.
+/// The accessibility traits of a checkbox option: the toggle trait, and selected while picked, which VoiceOver reads as
+/// checked.
 private struct CheckboxTraits: ViewModifier {
   let selected: Bool
 
   func body(content: Content) -> some View {
     let traits: AccessibilityTraits = selected ? .isSelected : []
-    if #available(iOS 17, *) {
-      content.accessibilityAddTraits(traits.union(.isToggle))
-    } else {
-      content.accessibilityAddTraits(traits)
-    }
+    content.accessibilityAddTraits(traits.union(.isToggle))
   }
 }

@@ -1,12 +1,6 @@
 import SwiftUI
 import UIKit
 
-extension EnvironmentValues {
-  /// Whether a carousel may use the scroll targets of iOS 17 to snap. A test turns it off to draw the carousel as it is
-  /// on iOS 16, the package's floor, where it scrolls freely.
-  @Entry var karnakCarouselSnaps = true
-}
-
 /// Which item of a carousel is current (`docs/renderer-contract.md`, Display primitives, `carousel`), from where the
 /// items that have been built are in the content and how far the scroll view has scrolled. An item's place in the
 /// content doesn't change as the carousel scrolls, so what it reported stays true after it is no longer built. It holds
@@ -24,6 +18,8 @@ final class CarouselPosition {
   private var current = 0
   /// Receives the current item when it changes.
   var onChange: ((Int) -> Void)?
+  /// Receives the scroll's moves, whether or not they change the current item.
+  var onScroll: (() -> Void)?
 
   /// The carousel's shape: how many items it has (an item that left is forgotten), the width of its content, which a
   /// right-to-left carousel counts from the right edge, and where its first item starts along the content (the leading
@@ -49,6 +45,7 @@ final class CarouselPosition {
     overflows = extent.overflows
     atEnd = extent.atEnd
     publish()
+    onScroll?()
   }
 
   private func publish() {
@@ -85,6 +82,10 @@ struct CarouselScrollProbe: UIViewRepresentable {
   let rightToLeft: Bool
   /// Receives the extent when the scroll view scrolls, resizes or its content changes size.
   let onChange: (CarouselScrollExtent) -> Void
+  /// Called when a finger goes down to drag the scroll view.
+  var onDragStart: () -> Void = {}
+  /// Called when the finger lifts or the drag is cancelled.
+  var onDragEnd: () -> Void = {}
 
   func makeUIView(context: Context) -> CarouselScrollProbeView {
     let view = CarouselScrollProbeView()
@@ -96,6 +97,8 @@ struct CarouselScrollProbe: UIViewRepresentable {
   func updateUIView(_ view: CarouselScrollProbeView, context: Context) {
     view.rightToLeft = rightToLeft
     view.onChange = onChange
+    view.onDragStart = onDragStart
+    view.onDragEnd = onDragEnd
     view.report()
   }
 }
@@ -104,6 +107,8 @@ struct CarouselScrollProbe: UIViewRepresentable {
 final class CarouselScrollProbeView: UIView {
   var rightToLeft = false
   var onChange: ((CarouselScrollExtent) -> Void)?
+  var onDragStart: () -> Void = {}
+  var onDragEnd: () -> Void = {}
   private var observations: [NSKeyValueObservation] = []
   private var last: CarouselScrollExtent?
 
@@ -119,13 +124,28 @@ final class CarouselScrollProbeView: UIView {
   override func didMoveToWindow() {
     super.didMoveToWindow()
     observations = []
+    dragged?.removeTarget(self, action: #selector(panned))
+    dragged = nil
     guard let scroll = scrollView else { return }
+    scroll.panGestureRecognizer.addTarget(self, action: #selector(panned))
+    dragged = scroll.panGestureRecognizer
     observations = [
       scroll.observe(\.contentOffset) { [weak self] _, _ in self?.reportOnMain() },
       scroll.observe(\.contentSize) { [weak self] _, _ in self?.reportOnMain() },
       scroll.observe(\.bounds) { [weak self] _, _ in self?.reportOnMain() },
     ]
     report()
+  }
+
+  /// The pan recognizer of the scroll view, which tells a person's drag from the scroll the engine asks for.
+  private weak var dragged: UIPanGestureRecognizer?
+
+  @objc private func panned(_ pan: UIPanGestureRecognizer) {
+    switch pan.state {
+    case .began: onDragStart()
+    case .ended, .cancelled, .failed: onDragEnd()
+    default: break
+    }
   }
 
   /// A key-value observation arrives on the main thread, as UIKit changes the scroll view there.

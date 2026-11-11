@@ -17,7 +17,8 @@ extension View {
   ) -> some View {
     let semantics = accessibilitySemantics(of: node)
     let isContainer = node is ResolvedContainer
-    let isBox = node is ResolvedIconNode || node is ResolvedProgressNode
+    let isBox =
+      node is ResolvedIconNode || node is ResolvedProgressNode || node is ResolvedCanvasNode
     let isGroup = (isContainer || isBox) && !semantics.hidden && !semantics.mergeDescendants
     return nodeBox(node, placement: placement, contentPosition: contentPosition, content: content)
       .modifier(
@@ -30,7 +31,18 @@ extension View {
       .modifier(
         NodeClick(
           handle: node.onClick, touchTarget: touchTarget(of: node),
-          group: isGroup ? semantics : nil)
+          group: isGroup ? semantics : nil, menu: node.layout.contextMenu)
+      )
+      .modifier(
+        NodeTooltip(
+          key: node.key.value, tooltip: node.layout.tooltip,
+          longPressShows: node.layout.contextMenu == nil)
+      )
+      .modifier(NodeContextMenu(menu: node.layout.contextMenu, inGroup: isGroup))
+      // A node with interaction styles of its own shows them in place of the system's hover effect.
+      .modifier(
+        NodeHover(
+          isActive: !node.interactive && (node.onClick != nil || node.layout.cursor == .pointer))
       )
       .modifier(
         ReservedTouchTarget(minimum: placement.reservesTouchTarget ? touchTarget(of: node) : 0)
@@ -64,6 +76,12 @@ private struct NodeBox: ViewModifier {
   let placement: ChildPlacement
   let contentPosition: ContentPosition
   let content: BoxContent
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  /// The move of a fixed height: none with Reduce Motion on, where the height snaps.
+  private var heightAnimation: Animation? {
+    reduceMotion ? nil : layout.transition(of: "layout.height")?.animation
+  }
 
   /// One axis of the box: its own sizing, or the whole proposal for a root that fills the host.
   private func axis(_ axis: Axis) -> AxisSizing {
@@ -84,10 +102,12 @@ private struct NodeBox: ViewModifier {
     ) {
       primitive.padding(edgeInsets(layout.padding))
     }
+    .animation(heightAnimation, value: axis(.vertical).mode)
     .modifier(NodeClip(shape: shape, clips: layout.clip))
     .background {
       NodeBackground(
-        shape: shape, fill: layout.background.map(resolvedColor), shadows: layout.shadows)
+        shape: shape, fill: layout.background.map(resolvedColor), paint: layout.backgroundTarget,
+        transition: layout.transition(of: "style.background"), shadows: layout.shadows)
     }
     .overlay {
       if let border = layout.border { NodeBorder(shape: shape, border: border) }

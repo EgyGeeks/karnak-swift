@@ -4,13 +4,13 @@ import PackageDescription
 
 let package = Package(
   name: "Karnak",
-  platforms: [.iOS(.v16)],
+  platforms: [.iOS(.v17)],
   products: [
     .library(name: "Karnak", targets: ["Karnak"]),
     .library(name: "KarnakNavigation", targets: ["KarnakNavigation"]),
   ],
   targets: [
-    .binaryTarget(name: "KarnakCore", url: "https://github.com/EgyGeeks/karnak-swift/releases/download/0.1.0-alpha.11/KarnakCore.xcframework.zip", checksum: "23b09a4f7d78ce3e085802c725596a0d8813109d3a979b8be0e5a5eb8d9f0fbb"),
+    .binaryTarget(name: "KarnakCore", url: "https://github.com/EgyGeeks/karnak-swift/releases/download/0.1.0-alpha.12/KarnakCore.xcframework.zip", checksum: "35d23ff2d949c49438ec8d862b60827a3efaa2dd38864efa61418b97115011e8"),
     .target(name: "Karnak", dependencies: ["KarnakCore", "KarnakSwiftUI", "KarnakDataHttp"]),
     .target(name: "KarnakSwiftUI", dependencies: ["KarnakCore"]),
     .target(name: "KarnakDataHttp", dependencies: ["KarnakCore", "KarnakSwiftUI"]),

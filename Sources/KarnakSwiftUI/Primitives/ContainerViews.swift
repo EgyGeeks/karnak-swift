@@ -44,7 +44,8 @@ struct RowView: View {
       ? AnyLayout(
         KarnakFlowLayout(
           wrapsWidth: wrapsWidth, wrapsHeight: wrapsHeight, spacing: fields.spacing,
-          arrangement: fields.arrangement, alignment: fields.alignment))
+          arrangement: fields.arrangement, alignment: fields.alignment,
+          alignContent: karnakAlignContent(row.alignContent)))
       : AnyLayout(
         KarnakRowLayout(
           wrapsWidth: wrapsWidth, wrapsHeight: wrapsHeight, spacing: fields.spacing,

@@ -5,6 +5,10 @@ extension EnvironmentValues {
   /// The area of the window a node must be inside to count as visible, in global coordinates: the
   /// window clipped by the scroll views around the screen (``ViewportProbe``). Nil outside a screen.
   @Entry var karnakViewport: CGRect?
+
+  /// Whether the screen is kept in the view tree under another one (an entry of a detail pane
+  /// below the top one): laid out for its state, but nothing in it is visible.
+  @Entry var karnakCovered = false
 }
 
 /// The share of a node that must be visible for its `actions.appear`
@@ -44,10 +48,11 @@ private struct AppearWatcher: ViewModifier {
   let handle: ActionHandle
   @Environment(\.karnakActions) private var actions
   @Environment(\.karnakViewport) private var viewport
+  @Environment(\.karnakCovered) private var covered
   @State private var frame: CGRect = .zero
 
   private var isVisible: Bool {
-    guard let viewport, frame != .zero else { return false }
+    guard !covered, let viewport, frame != .zero else { return false }
     return frame.isMostlyVisible(in: viewport)
   }
 

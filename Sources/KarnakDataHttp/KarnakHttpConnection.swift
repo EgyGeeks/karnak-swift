@@ -75,6 +75,12 @@ public struct KarnakHttpConnection: Sendable {
   /// on what an interceptor returns, so it cannot move a request to another host or path, or
   /// change its method.
   public var interceptors: [@Sendable (KarnakHttpRequest) -> KarnakHttpRequest] = []
+  /// What a `401` does (ADR 0015 D12.5): refresh the person's credentials and return whether you got new ones. It
+  /// runs once at a time for this connection (requests that get a `401` together share one run); with `true` the
+  /// request is sent once more and ``headerProvider`` runs again. A second `401`, `false` or `nil` fails the source,
+  /// and the client's `onSignInRequired` is then called at most once per account. A post's write is retried the same
+  /// way, with the same `Idempotency-Key`. Default: none.
+  public var onUnauthorized: (@Sendable () async -> Bool)?
   /// The most requests in flight at once, between 1 and 32. `nil` keeps the default, 4.
   public var maxInFlight: Int?
   /// The deadline of one request in milliseconds. `nil` keeps the default, 4000.

@@ -1,8 +1,8 @@
 import KarnakCore
 import SwiftUI
 
-/// `grid`: equal columns, fixed or as many as the proposed width fits, children placed row by row
-/// with their `span` through ``KarnakGridLayout`` (`docs/renderer-contract.md`, Display primitives,
+/// `grid`: equal columns, fixed or as many as the proposed width fits, or tracks of their own
+/// widths, children placed row by row or in their areas through ``KarnakGridLayout`` (`docs/renderer-contract.md`, Display primitives,
 /// `grid`).
 struct GridView: View {
   /// The grid.
@@ -32,7 +32,18 @@ func karnakGridColumns(_ columns: GridColumns) -> KarnakGridColumns {
       unboundedColumns: Int(adaptive.unboundedColumns))
   case let fixed as GridColumns.Fixed:
     .fixed(Int(fixed.count))
+  case let tracks as GridColumns.Tracks:
+    .tracks(tracks.tracks.map(karnakGridTrack))
   default:
     .fixed(2)
+  }
+}
+
+/// The layout's track for a resolved one.
+private func karnakGridTrack(_ track: GridTrack) -> KarnakGridTrack {
+  switch track {
+  case let fixed as GridTrackFixed: .fixed(points(dp: Float(fixed.dp)))
+  case let fraction as GridTrackFraction: .fraction(CGFloat(fraction.share))
+  default: .wrap
   }
 }

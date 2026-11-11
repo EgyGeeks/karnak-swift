@@ -16,8 +16,22 @@ struct KarnakLayoutInput: Sendable {
   var align: KarnakCrossAlignment?
   /// The columns the child covers in a grid; 1 anywhere else.
   var span = 1
+  /// The rows the child covers in a grid; 1 anywhere else.
+  var rowSpan = 1
+  /// The cells the child takes in a grid whose area it names; nil for a child placed in order.
+  var gridArea: KarnakGridCell?
   /// The child's height is `Fill`: in a grid it takes its row's height.
   var fillsHeight = false
+  /// How the child flexes on its line in a wrapping row; nil when it doesn't.
+  var flex: KarnakFlex?
+}
+
+/// A child's `grow`, `shrink` and `basis` in a wrapping row, in points.
+struct KarnakFlex: Sendable, Equatable {
+  var grow: CGFloat = 0
+  var shrink: CGFloat = 0
+  /// The width lines break with and flexing starts from; nil for the child's own width.
+  var basis: CGFloat?
 }
 
 struct KarnakLayoutInputKey: LayoutValueKey {

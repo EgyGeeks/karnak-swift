@@ -4,11 +4,12 @@ import SwiftUI
 /// Sends `click(handle)` when a clickable node is tapped or activated by an assistive
 /// technology. Hits land anywhere in the node's touch target, not only in its drawn box.
 ///
-/// A clickable container whose children stay separately reachable (one of them is actionable
-/// itself, so it doesn't merge) is a group, not an element, and VoiceOver can't activate a
-/// group. So it gets its own element behind its children, named by its semantics, which
-/// VoiceOver reaches first and activates without a hit test: a child's touch target never
-/// takes the container's activation.
+/// A container whose children stay separately reachable (one of them is actionable itself, so
+/// it doesn't merge) is a group, not an element, and VoiceOver can't activate a group or list
+/// its actions. So a clickable group, or one with a context menu, gets its own element behind
+/// its children, named by its semantics, which VoiceOver reaches first: it activates the click
+/// without a hit test (a child's touch target never takes the container's activation) and
+/// lists the menu's items as its actions.
 struct NodeClick: ViewModifier {
   /// The node's click handle; nil when it isn't clickable.
   let handle: ActionHandle?
@@ -17,6 +18,8 @@ struct NodeClick: ViewModifier {
   /// The semantics of a container whose children stay reachable; nil for a node that is one
   /// accessibility element.
   var group: AccessibilitySemantics?
+  /// The node's context menu, whose items the group's element lists as its actions.
+  var menu: ResolvedContextMenu?
   @Environment(\.karnakActions) private var actions
 
   func body(content: Content) -> some View {
@@ -26,21 +29,37 @@ struct NodeClick: ViewModifier {
         .contentShape(TouchTargetShape(minimum: touchTarget))
         .onTapGesture { actions.click(handle) }
       if let group {
-        tappable.background {
-          Rectangle().fill(.clear)
-            .accessibilityElement(children: .ignore)
-            .modifier(NodeSemantics(semantics: group, isContainer: false))
-            .accessibilityAction { actions.click(handle) }
-            // Before its children, as the tree orders a container.
-            .accessibilitySortPriority(1)
-        }
-        // Its own container, so the priority orders the element only among the node's children.
-        .accessibilityElement(children: .contain)
+        grouped(tappable, group)
       } else {
         tappable.accessibilityAction { actions.click(handle) }
       }
+    } else if let group, menu != nil {
+      grouped(content, group)
     } else {
       content
+    }
+  }
+
+  private func grouped(_ content: some View, _ group: AccessibilitySemantics) -> some View {
+    content.background {
+      groupElement(group)
+        .modifier(MenuActions(menu: menu))
+        // Before its children, as the tree orders a container.
+        .accessibilitySortPriority(1)
+    }
+    // Its own container, so the priority orders the element only among the node's children.
+    .accessibilityElement(children: .contain)
+  }
+
+  @ViewBuilder
+  private func groupElement(_ group: AccessibilitySemantics) -> some View {
+    let element = Rectangle().fill(.clear)
+      .accessibilityElement(children: .ignore)
+      .modifier(NodeSemantics(semantics: group, isContainer: false))
+    if let handle {
+      element.accessibilityAction { actions.click(handle) }
+    } else {
+      element
     }
   }
 }

@@ -1,6 +1,6 @@
-import Combine
 import Foundation
 import KarnakCore
+import Observation
 
 /// What a screen view shows now.
 enum ScreenPhase {
@@ -10,15 +10,19 @@ enum ScreenPhase {
 }
 
 /// Follows one open screen for its view: opens it when the view appears and publishes its states.
-/// It is the view's `@StateObject`, which SwiftUI keeps for the life of the view's identity, so
+/// It is the view's `@State`, which SwiftUI keeps for the life of the view's identity, so
 /// the screen it follows does too: a hidden screen (covered, in another tab) keeps its content
 /// and effects. ``ViewLifetime`` stops it when the view is gone for good, a section stops it when
 /// it disappears, and a model that is released closes what is still open
-/// (iOS 16 has no `@Observable`; `docs/integration.md`, State ownership).
+/// (`docs/integration.md`, State ownership).
+///
+/// It is `@Observable` (ADR 0037, D20): a view re-evaluates only for the state its `body` reads, and `phase` is
+/// the one thing views read. Everything else is `@ObservationIgnored`, so a bookkeeping change never redraws.
+@Observable
 @MainActor
-final class ScreenModel: ObservableObject {
+final class ScreenModel {
   /// What to draw. It keeps the last content while the same screen loads again.
-  @Published private(set) var phase = ScreenPhase.loading
+  private(set) var phase = ScreenPhase.loading
 
   /// The effects the open screen asks to present.
   let effects: EffectModel
@@ -27,20 +31,20 @@ final class ScreenModel: ObservableObject {
   let gate = ContentGate()
 
   /// The id of the screen it follows, once known: the key it opened, or the instance it follows.
-  private(set) var screenId: String?
-  private var session: ScreenSession?
+  @ObservationIgnored private(set) var screenId: String?
+  @ObservationIgnored private var session: ScreenSession?
   private let closer = DeinitCloser()
   /// Whether the model closes the session it follows: not for a sheet's, which the engine owns.
-  private var ownsSession = true
-  private var stopObserving: (() -> Void)?
-  private var stopObservingEffects: (() -> Void)?
-  private var startedKey: SessionKey?
-  private var opener: ScreenOpening?
-  private var params: [String: Any] = [:]
-  private var environment = ScreenModel.initialEnvironment
-  private var callbacks = KarnakHostCallbacks()
+  @ObservationIgnored private var ownsSession = true
+  @ObservationIgnored private var stopObserving: (() -> Void)?
+  @ObservationIgnored private var stopObservingEffects: (() -> Void)?
+  @ObservationIgnored private var startedKey: SessionKey?
+  @ObservationIgnored private var opener: ScreenOpening?
+  @ObservationIgnored private var params: [String: Any] = [:]
+  @ObservationIgnored private var environment = ScreenModel.initialEnvironment
+  @ObservationIgnored private var callbacks = KarnakHostCallbacks()
   /// What keeps the screen in the foreground; a change that flips the answer reaches the engine.
-  private var presence = ForegroundPresence() {
+  @ObservationIgnored private var presence = ForegroundPresence() {
     didSet {
       if presence.isForeground != oldValue.isForeground { reportForeground() }
       effects.setVisible(presence.shown && !presence.covered)
@@ -48,13 +52,18 @@ final class ScreenModel: ObservableObject {
   }
   /// The entry the screen is, when it has one, and the id the model reports as removed when the
   /// screen is gone (its own entries only).
-  private var entry: ScreenEntry?
+  @ObservationIgnored private var entry: ScreenEntry?
   /// The id of the entry the screen makes of itself when its caller waits for an outcome.
   let ownEntryId = "karnak-screen-\(UUID().uuidString)"
   /// Who hears the outcome of a screen that is an entry of its own: the latest hook.
-  var finishHandler: ((_ outcome: String, _ result: [String: Any]) -> Void)?
-  private var reportsRemoval = false
-  private lazy var bridge = HostActionBridge { [weak self] message in
+  @ObservationIgnored var finishHandler: ((_ outcome: String, _ result: [String: Any]) -> Void)?
+  @ObservationIgnored private var reportsRemoval = false
+  /// Where the screen's form state waits for a process that replaces this one: a full screen's, set by its view
+  /// before it starts. Sections and the engine's own instances (a sheet's) have none.
+  @ObservationIgnored var savedFormsSlot: SavedFormsSlot? {
+    didSet { if oldValue?.name != savedFormsSlot?.name { oldValue?.keep(nil) } }
+  }
+  @ObservationIgnored private lazy var bridge = HostActionBridge { [weak self] message in
     self?.report(message)
   }
 
@@ -130,6 +139,8 @@ final class ScreenModel: ObservableObject {
     // A new instance is in the foreground until told otherwise.
     if ownsSession, !presence.isForeground { opened.setForeground(false) }
     if ownsSession { closer.action = closingAction(opened) }
+    // Right after it opens, once: what the last process kept of this screen.
+    if ownsSession, let saved = savedFormsSlot?.take() { opened.restoreState(saved) }
     effects.bind(opened)
     opened.setHostActions(bridge.hostActions)
     stopObserving = opened.observe { [weak self] state in
@@ -144,8 +155,10 @@ final class ScreenModel: ObservableObject {
   private func closingAction(_ opened: ScreenSession) -> @MainActor () -> Void {
     let removed = reportsRemoval ? entry?.id : nil
     let owner = opener
+    let slot = savedFormsSlot
     return {
       opened.close()
+      slot?.keep(nil)
       if let removed { owner?.entryRemoved(removed) }
     }
   }
@@ -201,6 +214,16 @@ final class ScreenModel: ObservableObject {
     session?.appear(handle)
   }
 
+  /// Sends a node's settled event, such as a carousel's `pageChange`, to the open screen; nothing happens without one.
+  func event(_ handle: ActionHandle, payload: KarnakValue, byUser: Bool, generation: Int64) {
+    session?.event(handle, payload: payload, byUser: byUser, generation: generation)
+  }
+
+  /// Tells the open screen the floating view `key` ended for `reason`; nothing happens without one.
+  func floatingDismissed(_ key: String, _ reason: FloatingDismissReason) {
+    session?.floatingDismissed(key, reason)
+  }
+
   /// Sends an input's event to the open screen; nothing happens without one.
   func input(_ event: InputEvent) {
     session?.input(event)
@@ -223,6 +246,7 @@ final class ScreenModel: ObservableObject {
     stopObserving?()
     stopObservingEffects?()
     if ownsSession { session?.close() }
+    savedFormsSlot?.keep(nil)
     effects.reset()
     gate.reset()
     stopObserving = nil
@@ -236,6 +260,14 @@ final class ScreenModel: ObservableObject {
     // The view is gone for good, covered or not: close what a disappearing view left open.
     let closer = closer
     Task { @MainActor in closer.action?() }
+  }
+
+  /// The app stopped being the one the person uses (`leaving`), the one state a process is ended from, or is it
+  /// again. The open screen's form state is kept while it is away, asked of the live instance then so it is current,
+  /// and dropped on return, so a later visit to the same screen in this process starts clean. The engine decides
+  /// what the text holds and whether it applies later (`ScreenSession.saveState`).
+  func keepForms(leaving: Bool) {
+    savedFormsSlot?.keep(leaving ? session?.saveState() : nil)
   }
 
   /// Loads the screen again, from the error UI's retry.

@@ -7,6 +7,8 @@ import SwiftUI
 /// per view, and the screen's `show_sheet` sheet uses the screen's.
 struct OverlayPresentation: View {
   @ObservedObject var model: EffectModel
+  /// Whether the screen draws its detail pane itself (``DetailPanes``).
+  var hasPanes = false
 
   var body: some View {
     Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
@@ -17,6 +19,22 @@ struct OverlayPresentation: View {
       .fullScreenCover(item: overlay(.modal)) { presented in
         ContainedStackView(overlay: presented, fillsSpace: true)
       }
+      .background(detailCover)
+  }
+
+  /// A screen with no panes of its own (a section) shows its detail as a full-screen cover. It
+  /// sits on a view of its own, since a view takes one cover.
+  @ViewBuilder private var detailCover: some View {
+    if !hasPanes {
+      Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
+        .fullScreenCover(
+          item: Binding(
+            get: { model.detail },
+            set: { if $0 == nil { model.detailClosedByUser() } })
+        ) { presented in
+          ContainedStackView(overlay: presented, fillsSpace: true)
+        }
+    }
   }
 
   private func overlay(_ presentation: KarnakPresentation) -> Binding<OverlayModel?> {
@@ -26,8 +44,9 @@ struct OverlayPresentation: View {
   }
 }
 
-/// The `NavigationStack` of a contained stack, an overlay's or a placed flow's: its first entry
-/// is the root, the others are pushed, and a pop is reported to the engine.
+/// The `NavigationStack` of a contained stack, an overlay's or a placed flow's (a detail pane
+/// has ``PaneStackView``): its first entry is the root, the others are pushed, and a pop is
+/// reported to the engine.
 struct ContainedStackView: View {
   @ObservedObject var overlay: OverlayModel
   /// Whether the screens fill the space they are offered (a full-screen cover, a placed flow)
@@ -68,7 +87,7 @@ struct ContainedStackView: View {
 }
 
 /// One entry of a contained stack: the SDK's screen, or the app's native screen of a route step.
-private struct ContainedEntryView: View {
+struct ContainedEntryView: View {
   let entry: OverlayEntry
   let fillsSpace: Bool
   let onHeight: (CGFloat) -> Void
@@ -93,7 +112,7 @@ private struct ContainedEntryView: View {
 
 /// The screen of one overlay entry, drawn like a top-level screen: its own states and effects.
 struct OverlayScreenView: View {
-  @ObservedObject var model: ScreenModel
+  let model: ScreenModel
   let fillsSpace: Bool
   @Environment(\.karnakScreenStates) private var screenStates
 
@@ -125,7 +144,8 @@ struct OverlayScreenView: View {
   private func content(_ screen: ResolvedScreen) -> some View {
     ResolvedScreenView(
       screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
-      onInput: { model.input($0) }, focus: model.effects.focus, measuresViewport: true,
-      fillsSpace: fillsSpace)
+      onEvent: { model.event($0, payload: $1, byUser: $2, generation: $3) },
+      onInput: { model.input($0) }, onFloatingDismiss: { model.floatingDismissed($0, $1) },
+      focus: model.effects.focus, measuresViewport: true, fillsSpace: fillsSpace)
   }
 }

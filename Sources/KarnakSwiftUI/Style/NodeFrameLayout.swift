@@ -14,6 +14,13 @@ struct NodeFrameLayout: Layout {
   var position = ContentPosition.topStart
   var content = BoxContent.measured
 
+  /// A fixed height, which SwiftUI interpolates while a `layout.height` transition runs (`docs/renderer-contract.md`,
+  /// Motion); 0 for any other sizing, which doesn't move.
+  var animatableData: CGFloat {
+    get { if case .fixed(let size) = height.mode { size } else { 0 } }
+    set { if case .fixed = height.mode { height.mode = .fixed(newValue) } }
+  }
+
   func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
     let proposedWidth = proposal.width.finite
     let proposedHeight = proposal.height.finite

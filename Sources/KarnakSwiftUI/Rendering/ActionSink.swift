@@ -11,12 +11,20 @@ final class ActionSink {
   /// The latest appearance handler; the root view replaces it on every update.
   var appearHandler: (ActionHandle) -> Void
 
+  /// The latest event handler; the root view replaces it on every update.
+  var eventHandler: (ActionHandle, KarnakValue, Bool, Int64) -> Void
+
+  /// The generation of the tree being drawn, which an event says it was raised on.
+  var generation: Int64 = 0
+
   /// Creates a sink that sends clicks to `handler` and appearances to `appearHandler`; the
   /// defaults drop them.
   init(
     handler: @escaping (ActionHandle) -> Void = { _ in },
-    appearHandler: @escaping (ActionHandle) -> Void = { _ in }
+    appearHandler: @escaping (ActionHandle) -> Void = { _ in },
+    eventHandler: @escaping (ActionHandle, KarnakValue, Bool, Int64) -> Void = { _, _, _, _ in }
   ) {
+    self.eventHandler = eventHandler
     self.handler = handler
     self.appearHandler = appearHandler
   }
@@ -24,6 +32,12 @@ final class ActionSink {
   /// Sends `click(handle)` for an activated node or link run.
   func click(_ handle: ActionHandle) {
     handler(handle)
+  }
+
+  /// Sends a node's settled event, such as a carousel's `pageChange`, with the `payload` its type declares
+  /// (`docs/protocol.md`, Component events and node values) and whether a person caused it.
+  func event(_ handle: ActionHandle, payload: KarnakValue, byUser: Bool) {
+    eventHandler(handle, payload, byUser, generation)
   }
 
   /// Sends `appear(handle)` for a node that is at least half visible.

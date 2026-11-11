@@ -4,8 +4,10 @@ import SwiftUI
 extension View {
   /// Presents the effects of `model` over this view: a toast overlay, a system alert for a
   /// dialog and a sheet with detents for a sheet.
-  func presentingEffects(_ model: EffectModel) -> some View {
-    modifier(EffectsPresentation(model: model))
+  /// A screen that draws its detail pane itself (``DetailPanes``) says so with `hasPanes`;
+  /// otherwise a detail shows as a full-screen cover.
+  func presentingEffects(_ model: EffectModel, hasPanes: Bool = false) -> some View {
+    modifier(EffectsPresentation(model: model, hasPanes: hasPanes))
   }
 }
 
@@ -14,13 +16,15 @@ extension View {
 /// engine's `EffectStyle`; the toast is drawn from it.
 private struct EffectsPresentation: ViewModifier {
   @ObservedObject var model: EffectModel
+  let hasPanes: Bool
   @Environment(\.karnakFonts) private var fonts
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @StateObject private var toastWindow = ToastWindow()
 
   func body(content: Content) -> some View {
     content
-      .background(OverlayPresentation(model: model))
+      .environment(\.karnakDialogCovers, model.dialog != nil)
+      .background(OverlayPresentation(model: model, hasPanes: hasPanes))
       // The toast lives in a window of its own, so it sits at the bottom of the display even
       // when this screen is the tall content of a scroll view. Without a scene (tests), it is
       // an overlay of the screen.

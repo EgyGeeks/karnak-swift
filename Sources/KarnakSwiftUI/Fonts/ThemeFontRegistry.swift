@@ -1,5 +1,6 @@
 import Foundation
 import KarnakCore
+import Observation
 import SwiftUI
 
 /// Where the file of a theme font face comes from: the client's font cache, or a fake in tests.
@@ -24,7 +25,8 @@ struct FontFaceHandle: @unchecked Sendable {
 /// its text keeps the system font, and is tried again on the next draw after `retryAfter`
 /// seconds: a failure can be transient (offline at launch), and the app can live for days.
 @MainActor
-final class ThemeFontRegistry: ObservableObject {
+@Observable
+final class ThemeFontRegistry {
   /// A registry with no font source: every face keeps the system font.
   static let unavailable = ThemeFontRegistry(source: nil)
 
@@ -34,11 +36,15 @@ final class ThemeFontRegistry: ObservableObject {
     case failed(Date)
   }
 
-  private let source: (any FontFileSource)?
-  private var states: [String: State] = [:]
+  @ObservationIgnored private let source: (any FontFileSource)?
+  @ObservationIgnored private var states: [String: State] = [:]
 
-  private let retryAfter: TimeInterval
-  private let now: () -> Date
+  /// How many faces have been registered. A view that asked for a name reads it, so it draws again when one lands;
+  /// the loading state itself isn't observed, as a draw sets it.
+  private(set) var registered = 0
+
+  @ObservationIgnored private let retryAfter: TimeInterval
+  @ObservationIgnored private let now: () -> Date
 
   init(
     source: (any FontFileSource)?,
@@ -53,6 +59,7 @@ final class ThemeFontRegistry: ObservableObject {
   /// The registered PostScript name of `face`, or nil while it loads or if it can't be used.
   func postScriptName(for face: ResolvedFontFace) -> String? {
     let key = Self.key(face)
+    _ = registered
     switch states[key] {
     case .ready(let name): return name
     case .loading: return nil
@@ -74,7 +81,7 @@ final class ThemeFontRegistry: ObservableObject {
       name = nil
     }
     states[key] = name.map(State.ready) ?? .failed(now())
-    if name != nil { objectWillChange.send() }
+    if name != nil { registered += 1 }
   }
 
   /// Faces are identified by their sources: revision URLs name immutable bytes.

@@ -13,6 +13,17 @@ struct ScrollingList: View {
   @State private var viewport: CGRect?
   @State private var contentHeight: CGFloat = .infinity
   @State private var anchoring = ListAnchoring()
+  @State private var scrollReporter = ListScrollReporter()
+  @Environment(\.karnakActions) private var actions
+  @Environment(\.karnakComponents) private var components
+
+  /// Points the reporter at this list's trigger, and at the finger that moves it (a programmatic move is no person's).
+  private func configure(_ reporter: ListScrollReporter, handle: ActionHandle?) {
+    reporter.isGestureActive = { [anchoring] in anchoring.anchors.scroll?.isGestureActive ?? false }
+    reporter.send = { [actions] payload, byUser in
+      if let handle { actions.event(handle, payload: payload, byUser: byUser) }
+    }
+  }
 
   /// A list that hugs its height (`wrap` with a `maxHeight`) is as tall as its rows up to the maximum.
   private var hugsContent: Bool { placement.wraps(.vertical, of: list.layout) }
@@ -22,14 +33,18 @@ struct ScrollingList: View {
     // In `body`, not `onChange`: the row at the top must be captured before the new rows are laid out, as the
     // screen's `ContentGate` captures it before an update, and `onChange` runs after that layout.
     anchoring.rowsChanged(to: list.children.map(\.key.value))
+    let scrollHandle = list.events[scrollChangeEvent]
+    let reportsScroll = scrollHandle != nil
+    configure(scrollReporter, handle: scrollHandle)
     return ScrollView {
       LazyVStack(alignment: .leading, spacing: points(dp: list.spacing)) {
-        ForEach(list.children.compactMap(drawnNode), id: \.key.value) { child in
+        ForEach(list.children.compactMap { components.drawnNode($0) }, id: \.key.value) { child in
           ListRow(node: child)
             .modifier(RowAnchorModifier(key: child.key.value))
         }
       }
       .padding(edgeInsets(list.contentPadding))
+      .scrollSentinel(isEnabled: reportsScroll) { scrollReporter.moved(to: $0) }
       .onGeometryChange(for: CGFloat.self) {
         $0.size.height
       } action: {
@@ -42,6 +57,10 @@ struct ScrollingList: View {
         }
       }
     }
+    .measuresScroll()
+    .reportsScrollOffset(isEnabled: reportsScroll) { scrollReporter.moved(to: $0) }
+    // The room a floating view reserves at the end of the screen's list, for the first list only (ADR 0038, D19).
+    .floatingReserved()
     .frame(maxHeight: hugsContent ? contentHeight : .infinity)
     .environment(\.karnakViewport, measures ? viewport : nil)
     .environment(\.karnakRowAnchors, anchoring.anchors)

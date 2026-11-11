@@ -23,4 +23,19 @@ enum AppLifecycle {
       .merge(with: stopped, started)
       .eraseToAnyPublisher()
   }
+
+  /// `false` each time the app stops being the one the person uses (it resigns: the app switcher, a system alert,
+  /// the way to the background) and `true` each time it is again. Nothing until the first change. A process is
+  /// ended only while it is not frontmost, so the first is the moment to save what must outlive it.
+  @MainActor
+  static var isFrontmost: AnyPublisher<Bool, Never> {
+    let center = NotificationCenter.default
+    let resigned = center.publisher(for: UIApplication.willResignActiveNotification).map { _ in
+      false
+    }
+    let returned = center.publisher(for: UIApplication.didBecomeActiveNotification).map { _ in
+      true
+    }
+    return resigned.merge(with: returned).eraseToAnyPublisher()
+  }
 }

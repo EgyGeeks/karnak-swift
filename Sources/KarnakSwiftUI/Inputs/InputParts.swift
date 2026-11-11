@@ -79,11 +79,17 @@ struct InputTextView: View {
   }
 
   var body: some View {
-    ParagraphView(paragraph: text.paragraph, alignment: layout?.alignment)
+    paragraph
       .environment(\.layoutDirection, layout?.direction ?? screenDirection)
       .padding(edgeInsets(text.padding))
       .opacity(Double(text.alpha))
       .accessibilityHidden(true)
+  }
+
+  /// The paragraph, its lines aligned by the layout when it is a text field's placeholder.
+  @ViewBuilder private var paragraph: some View {
+    let drawn = ParagraphView(paragraph: text.paragraph, alignment: layout?.alignment)
+    if layout == nil { drawn } else { drawn.alignsTextByLayout() }
   }
 }
 

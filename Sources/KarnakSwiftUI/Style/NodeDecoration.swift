@@ -10,6 +10,10 @@ struct NodeBackground: View {
   let shape: NodeShape
   /// The background, or nil for none.
   let fill: Color?
+  /// The background as a paint (a gradient, a mesh, or a flat color its transition moves), which wins over `fill`.
+  var paint: PaintTarget?
+  /// How the background moves when a new tree changes it, or nil to change at once.
+  var transition: ResolvedTransition?
   /// Up to two shadows, painted in order.
   let shadows: [KarnakShadow]
   @Environment(\.layoutDirection) private var direction
@@ -26,7 +30,12 @@ struct NodeBackground: View {
           )
           .blur(radius: points(dp: shadow.blur) / 2)
       }
-      if let fill {
+      if let transition {
+        MovingPaint(target: paint, shape: shape, transition: transition)
+      } else if let paint, paint.flatColor == nil {
+        // A gradient or a mesh: `fill` is only its fallback color.
+        PaintedFill(from: nil, to: paint, shape: shape)
+      } else if let fill = fill ?? paint?.flatColor {
         shape.fill(fill)
       }
     }
@@ -41,6 +50,10 @@ struct NodeBorder: View {
   let border: KarnakBorder
 
   var body: some View {
-    shape.strokeBorder(resolvedColor(border.color), lineWidth: points(dp: border.width))
+    if let paint = border.paint {
+      PaintedStroke(target: .of(paint), shape: shape, width: points(dp: border.width))
+    } else {
+      shape.strokeBorder(resolvedColor(border.color), lineWidth: points(dp: border.width))
+    }
   }
 }

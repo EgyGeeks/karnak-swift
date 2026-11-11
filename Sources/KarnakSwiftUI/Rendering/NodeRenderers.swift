@@ -17,6 +17,8 @@ struct NodeRegistration {
   /// cannot read, as a UIKit-backed scroll view keeps its content out of an in-process accessibility traversal.
   var reportsFrame = false
   /// Whether the drawing is the node's whole box, with its own style and interaction states: a button and an input.
+  /// A custom node too: ``CustomNodeView`` styles the host's view, and a fallback drawn in the node's place has its
+  /// own style.
   var drawsOwnBox = false
   /// Where the primitive sits when its box is larger than it: a stack's content alignment, a paragraph's alignment,
   /// a button's center, else the top start corner.
@@ -65,19 +67,19 @@ extension NodeRegistration {
 }
 
 /// The drawing of each resolved kind, by name. A kind this renderer has no drawing for is skipped, except a
-/// host's custom type, which draws its fallback (no custom renderers are registered yet); nothing else dispatches
-/// on a node's class or type.
+/// host's custom type, which ``CustomNodeView`` draws with the renderer the host registered for it; nothing else
+/// dispatches on a node's class or type.
 enum NodeRenderers {
   /// The registration for `node`'s kind.
   static func registration(for node: ResolvedNode) -> NodeRegistration {
     registration(forKind: node.kind)
   }
 
-  /// The registration for the kind named `kind`: a custom type (it has a namespace) with no renderer draws its
-  /// fallback, and any other unknown kind is unsupported.
+  /// The registration for the kind named `kind`: a custom type (it has a namespace) is drawn by the host's renderer,
+  /// and any other unknown kind is unsupported.
   static func registration(forKind kind: String) -> NodeRegistration {
     if let registered = table[kind] { return registered }
-    return kind.contains(".") ? customFallback : unsupported
+    return kind.contains(".") ? custom : unsupported
   }
 
   /// The nodes drawn inside `node`: a container's children or a custom node's fallback.
@@ -85,8 +87,7 @@ enum NodeRenderers {
     registration(for: node).children(node)
   }
 
-  /// The node drawn in `node`'s place, or nil when nothing is: a custom node draws its fallback, and an
-  /// unsupported node is skipped. Containers draw only these, so a skipped node takes no slot and no spacing.
+  /// The node drawn in `node`'s place, or nil when nothing is: an unsupported node is skipped. Containers draw only these, so a skipped node takes no slot and no spacing.
   static func drawnNode(_ node: ResolvedNode) -> ResolvedNode? {
     registration(for: node).drawn(node)
   }
@@ -97,16 +98,9 @@ enum NodeRenderers {
   nonisolated(unsafe) private static let table: [String: NodeRegistration] =
     layouts().merging(contents()) { $1 }.merging(inputs()) { $1 }
 
-  nonisolated(unsafe) private static let customFallback: NodeRegistration = {
-    var registration = NodeRegistration.of(
-      ResolvedCustom.self, children: { $0.fallback.map { [$0] } ?? [] },
-      draw: { _, _ in
-        AnyView(EmptyView())
-      })
-    registration.isDrawn = false
-    registration.drawn = { ($0 as? ResolvedCustom)?.fallback.flatMap { drawnNode($0) } }
-    return registration
-  }()
+  nonisolated(unsafe) private static let custom: NodeRegistration = .of(
+    ResolvedCustom.self, drawsOwnBox: true, children: { $0.fallback.map { [$0] } ?? [] },
+    draw: { custom, placement in AnyView(CustomNodeView(node: custom, placement: placement)) })
 
   nonisolated(unsafe) private static let unsupported: NodeRegistration = {
     var registration = NodeRegistration()
@@ -183,11 +177,15 @@ enum NodeRenderers {
       draw: { image, _ in
         AnyView(ImageView(image: image))
       })
+    table["canvas"] = .of(
+      ResolvedCanvasNode.self, draw: { node, _ in AnyView(CanvasView(canvas: node.canvas)) })
     table["icon"] = .of(ResolvedIconNode.self, draw: { icon, _ in AnyView(IconView(node: icon)) })
     table["progress"] = .of(
       ResolvedProgressNode.self,
       draw: { progress, _ in
-        AnyView(ProgressIndicatorView(progress.progress))
+        AnyView(
+          ProgressIndicatorView(
+            progress.progress, valueTransition: progress.layout.transition(of: "content.value")))
       })
     table["button"] = .of(
       ResolvedButton.self, drawsOwnBox: true, contentPosition: { _ in .center },

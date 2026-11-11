@@ -5,10 +5,9 @@ import SwiftUI
 private let carouselContentSpace = "karnakCarouselContent"
 
 /// The carousel's lazy row: a horizontal `ScrollView` of a `LazyHStack` whose slots are built by key, so an item keeps
-/// its state and the scroll keeps its place when an update keeps the keys. With `snap: item`, on iOS 17 and later,
-/// a scroll settles on an item at the leading content padding edge (scroll targets and content margins); before that
-/// it scrolls freely. Which item is current is read from the scroll offset and where the built items are in the content
-/// (``CarouselPosition``).
+/// its state and the scroll keeps its place when an update keeps the keys. With `snap: item`, a scroll settles on an
+/// item at the leading content padding edge (scroll targets and content margins). Which item is current is read from
+/// the scroll offset and where the built items are in the content (``CarouselPosition``).
 struct CarouselItems: View {
   let carousel: ResolvedCarousel
   let nodes: [ResolvedNode]
@@ -17,7 +16,8 @@ struct CarouselItems: View {
   @State private var position = CarouselPosition()
   @State private var contentWidth: CGFloat = 0
   @Environment(\.layoutDirection) private var direction
-  @Environment(\.karnakCarouselSnaps) private var allowsSnap
+  @Environment(\.karnakActions) private var actions
+  @State private var reporter = PageChangeReporter()
 
   var body: some View {
     GeometryReader { proxy in
@@ -25,7 +25,7 @@ struct CarouselItems: View {
       let height = max(0, proxy.size.height - metrics.padding.top - metrics.padding.bottom)
       let slot = metrics.slotWidth(in: width)
       let rightToLeft = direction == .rightToLeft
-      let snaps = carousel.snap && allowsSnap
+      let snaps = carousel.snap
       ScrollView(.horizontal, showsIndicators: carousel.indicator == nil) {
         LazyHStack(alignment: .top, spacing: metrics.spacing) {
           ForEach(Array(nodes.enumerated()), id: \.element.key.value) { index, node in
@@ -41,25 +41,43 @@ struct CarouselItems: View {
           contentWidth = $0
         }
         .background {
-          CarouselScrollProbe(rightToLeft: rightToLeft) { position.scrolled($0) }
+          CarouselScrollProbe(
+            rightToLeft: rightToLeft, onChange: { position.scrolled($0) },
+            onDragStart: { reporter.dragStarted() }, onDragEnd: { reporter.dragEnded() })
         }
       }
       .carouselSnap(metrics.padding, snaps: snaps)
       .environment(\.karnakReportsLabelledFrames, true)
     }
     .onAppear {
-      position.onChange = { current = $0 }
+      position.onChange = {
+        current = $0
+        reporter.moved(to: $0)
+      }
+      position.onScroll = { reporter.scrolling() }
+      reporter.send = { actions.event($0, payload: $1, byUser: $2) }
       configure()
+      reporter.moved(to: current)
     }
-    .onChange(of: nodes.count) { _ in configure() }
-    .onChange(of: contentWidth) { _ in configure() }
-    .onChange(of: direction) { _ in configure() }
+    .onChange(of: pageTarget, initial: true) {
+      reporter.update(handle: pageTarget.handle, keys: pageTarget.keys)
+    }
+    .onDisappear { reporter.cancel() }
+    .onChange(of: nodes.count) { configure() }
+    .onChange(of: contentWidth) { configure() }
+    .onChange(of: direction) { configure() }
+  }
+
+  /// What the carousel reports to: its trigger, and its items' keys, which name the item in the report.
+  private var pageTarget: PageTarget {
+    PageTarget(
+      handle: carousel.events[pageChangeEvent], keys: nodes.map(\.key.value))
   }
 
   private func configure() {
     position.configure(
       count: nodes.count, rightToLeft: direction == .rightToLeft, contentWidth: contentWidth,
-      origin: carousel.snap && allowsSnap ? 0 : metrics.padding.leading)
+      origin: carousel.snap ? 0 : metrics.padding.leading)
   }
 }
 
@@ -98,17 +116,17 @@ extension View {
   /// give it.
   @ViewBuilder
   fileprivate func carouselContent(_ padding: EdgeInsets, snaps: Bool) -> some View {
-    if #available(iOS 17, *), snaps {
+    if snaps {
       self.scrollTargetLayout().padding(.top, padding.top).padding(.bottom, padding.bottom)
     } else {
       self.padding(padding)
     }
   }
 
-  /// Snapping on the leading content padding edge, where the platform has it.
+  /// Snapping on the leading content padding edge.
   @ViewBuilder
   fileprivate func carouselSnap(_ padding: EdgeInsets, snaps: Bool) -> some View {
-    if #available(iOS 17, *), snaps {
+    if snaps {
       self.scrollTargetBehavior(.viewAligned)
         .contentMargins(.leading, padding.leading, for: .scrollContent)
         .contentMargins(.trailing, padding.trailing, for: .scrollContent)
@@ -116,4 +134,13 @@ extension View {
       self
     }
   }
+}
+
+/// The carousel's event, as its `actions` names it (`docs/protocol.md`, Component events and node values).
+private let pageChangeEvent = "pageChange"
+
+/// The trigger of a carousel's `pageChange` and the keys of its items.
+private struct PageTarget: Equatable {
+  let handle: ActionHandle?
+  let keys: [String]
 }

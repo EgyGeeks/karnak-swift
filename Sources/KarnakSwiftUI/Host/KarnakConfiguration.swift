@@ -78,6 +78,9 @@ public struct KarnakConfiguration {
   /// The form handlers registered with ``formHandler(_:_:)`` and ``screenFormHandlers(_:_:)``, in order.
   var formHandlers: [FormHandlerRegistration] = []
 
+  /// The custom component renderers registered with ``components(_:)``, by type.
+  var componentRenderers: [String: CustomRenderer] = [:]
+
   /// The loading and error views registered with ``screenStates(_:)``.
   var screenStatesFactories = ScreenStatesFactories()
 

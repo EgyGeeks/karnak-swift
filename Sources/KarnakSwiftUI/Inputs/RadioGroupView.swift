@@ -21,9 +21,9 @@ struct RadioGroupView: View {
         .accessibilityElement(children: .contain)
         .inputAccessibility(drawn)
     }
-    .onChange(of: focusedOption != nil) {
-      inputs.send(.focusChange(group.key, $0))
-      if $0 { focus.moved(to: group.key.value) }
+    .onChange(of: focusedOption != nil) { _, isFocused in
+      inputs.send(.focusChange(group.key, isFocused))
+      if isFocused { focus.moved(to: group.key.value) }
     }
     .onReceive(focus.moves) { if $0 != group.key.value { focusedOption = nil } }
     .onReceive(focus.requests) { key in

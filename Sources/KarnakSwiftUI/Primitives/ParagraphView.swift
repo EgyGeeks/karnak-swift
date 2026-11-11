@@ -31,16 +31,61 @@ private struct ThemedParagraph: View {
   let paragraph: ResolvedParagraph
   let isLabelled: Bool
   let alignment: TextAlignment?
-  @ObservedObject var fonts: ThemeFontRegistry
+  let fonts: ThemeFontRegistry
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.karnakActions) private var actions
 
   var body: some View {
+    if let tick = Countdown(paragraph) {
+      TimelineView(.periodic(from: tick.firstTick, by: 1)) { timeline in
+        content(nowMillis: Int64((timeline.date.timeIntervalSince1970 * 1000).rounded()))
+      }
+    } else {
+      content(nowMillis: nil)
+    }
+  }
+
+  private func content(nowMillis: Int64?) -> some View {
+    let traits = UITraitCollection(
+      preferredContentSizeCategory: UIContentSizeCategory(dynamicTypeSize))
     let styled = StyledParagraph(
-      paragraph,
-      traits: UITraitCollection(
-        preferredContentSizeCategory: UIContentSizeCategory(dynamicTypeSize)),
-      postScriptName: fonts.postScriptName(for:))
+      paragraph, traits: traits, postScriptName: fonts.postScriptName(for:), nowMillis: nowMillis)
+    return text(styled, layer: .base)
+      .overlay { gradientLayers(nowMillis: nowMillis, traits: traits) }
+      .tint(styled.linkColor)
+      .environment(
+        \.openURL,
+        OpenURLAction { url in
+          guard let handle = styled.handle(for: url) else { return .discarded }
+          actions.click(handle)
+          return .handled
+        })
+  }
+
+  /// One gradient per run that has a paint, shown through the run's own glyphs. A paragraph without a painted run
+  /// draws no layer at all: an empty stack is still an accessibility node, without a frame, that takes the node's
+  /// label with the text.
+  @ViewBuilder
+  private func gradientLayers(nowMillis: Int64?, traits: UITraitCollection) -> some View {
+    let painted = paragraph.runs.indices.filter { paragraph.runs[$0].paint != nil }
+    if !painted.isEmpty {
+      ZStack {
+        ForEach(painted, id: \.self) { index in
+          let styled = StyledParagraph(
+            paragraph, traits: traits, postScriptName: fonts.postScriptName(for:),
+            nowMillis: nowMillis, layer: .gradientRun(index))
+          if let paint = paragraph.runs[index].paint {
+            PaintedFill(from: nil, to: .of(paint), shape: NodeShape(radius: 0))
+              .mask { text(styled, layer: .gradientRun(index)) }
+          }
+        }
+      }
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
+    }
+  }
+
+  private func text(_ styled: StyledParagraph, layer: TextLayer) -> some View {
     Group {
       if paragraph.runs.isEmpty {
         // A zero-width space: one line of the base font and no glyphs, with nothing to read
@@ -59,14 +104,6 @@ private struct ThemedParagraph: View {
     .modifier(
       MinimumHeight(points: paragraph.minLines.map { CGFloat($0.int32Value) * styled.lineHeight })
     )
-    .tint(styled.linkColor)
-    .environment(
-      \.openURL,
-      OpenURLAction { url in
-        guard let handle = styled.handle(for: url) else { return .discarded }
-        actions.click(handle)
-        return .handled
-      })
   }
 }
 

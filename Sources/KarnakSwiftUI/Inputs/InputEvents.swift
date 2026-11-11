@@ -98,7 +98,7 @@ extension View {
     .onReceive(focus.moves) { moved in
       if moved != key, focused.wrappedValue { focused.wrappedValue = false }
     }
-    .onChange(of: focused.wrappedValue) { if $0 { focus.moved(to: key) } }
+    .onChange(of: focused.wrappedValue) { _, isFocused in if isFocused { focus.moved(to: key) } }
     .onAppear {
       if focus.take(key) { focused.wrappedValue = true }
     }
@@ -106,6 +106,6 @@ extension View {
 
   /// Sends `focusChange` for `key` each time `focused` flips.
   func reportsFocus(_ key: NodeKey, _ focused: Bool, to inputs: InputSink) -> some View {
-    onChange(of: focused) { inputs.send(.focusChange(key, $0)) }
+    onChange(of: focused) { _, isFocused in inputs.send(.focusChange(key, isFocused)) }
   }
 }

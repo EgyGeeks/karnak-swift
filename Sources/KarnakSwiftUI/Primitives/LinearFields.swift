@@ -52,6 +52,18 @@ func karnakArrangement(_ arrangement: Arrangement) -> KarnakArrangement {
   }
 }
 
+func karnakAlignContent(_ alignContent: AlignContent) -> KarnakAlignContent {
+  switch alignContent {
+  case .center: .center
+  case .end: .end
+  case .spacebetween: .spaceBetween
+  case .spacearound: .spaceAround
+  case .spaceevenly: .spaceEvenly
+  case .stretch: .stretch
+  default: .start
+  }
+}
+
 func crossAlignment(_ alignment: KarnakHorizontalAlignment) -> KarnakCrossAlignment {
   switch alignment {
   case .center: .center

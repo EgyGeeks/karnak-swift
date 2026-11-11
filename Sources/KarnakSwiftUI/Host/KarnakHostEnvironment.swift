@@ -92,6 +92,7 @@ extension View {
     )
     .environment(\.karnakFonts, client.fonts)
     .environment(\.karnakScreenStates, client.screenStates)
+    .environment(\.karnakComponents, client.components)
     .modifier(KarnakResourcesHost(core: client.resourcesCore))
   }
 

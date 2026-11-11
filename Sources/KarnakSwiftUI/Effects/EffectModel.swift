@@ -24,6 +24,10 @@ final class EffectModel: ObservableObject {
   @Published private(set) var sheet: PresentedSheet?
   /// The overlay on screen: a stack of the engine's, drawn in its own `NavigationStack`.
   @Published private(set) var overlay: OverlayModel?
+  /// The detail pane on screen (`presentation: "detail"`): a stack of the engine's, drawn beside
+  /// the screen or over it (``DetailPanes``). It shows together with an overlay, and the engine
+  /// puts a second detail in the same stack, so there is one at a time.
+  @Published private(set) var detail: OverlayModel?
   /// Where the screen's inputs hear the engine's focus requests, once the tree they were computed against is shown.
   let focus = InputFocus()
 
@@ -115,6 +119,7 @@ final class EffectModel: ObservableObject {
     dialog = nil
     closeSheet()
     closeOverlay()
+    closeDetail()
     pending = []
     focus.expire()
     answeredDialogs = []
@@ -191,6 +196,8 @@ final class EffectModel: ObservableObject {
       blockThenPromote(.sheet)
     } else if overlay?.id == id {
       overlayEnded(id: id)
+    } else if detail?.id == id {
+      detailEnded(id: id)
     } else {
       pending.removeAll { $0.id == id }
     }
@@ -224,6 +231,7 @@ final class EffectModel: ObservableObject {
     if overlay == nil, !blockedUntilClear.contains(.overlay), let request = take(\.asOverlay) {
       present(request)
     }
+    while let request = take(\.asDetail) { presentDetail(request) }
     while let request = take(\.asFocus) { focus.request(request.key) }
   }
 
@@ -257,11 +265,35 @@ final class EffectModel: ObservableObject {
 
   /// Posts a VoiceOver announcement for `message`.
   static func announceToVoiceOver(_ message: String) {
-    if #available(iOS 17, *) {
-      AccessibilityNotification.Announcement(message).post()
-    } else {
-      UIAccessibility.post(notification: .announcement, argument: message)
-    }
+    AccessibilityNotification.Announcement(message).post()
+  }
+}
+
+/// The detail pane (`presentation: "detail"`): one at a time, beside any overlay.
+extension EffectModel {
+  /// Shows the detail pane of `request` in place of the one on screen, whose stack has ended.
+  fileprivate func presentDetail(_ request: OverlayRequest) {
+    closeDetail()
+    let presented = OverlayModel(request, makeModel: openOverlayEntry)
+    presented.onEnded = { [weak self] in self?.detailEnded(id: request.id) }
+    detail = presented
+    presented.start()
+  }
+
+  fileprivate func detailEnded(id: String) {
+    guard detail?.id == id else { return }
+    closeDetail()
+  }
+
+  fileprivate func closeDetail() {
+    detail?.stop()
+    detail = nil
+  }
+
+  /// The user left the detail pane from its first screen: the engine closes the stack, and the
+  /// pane ends with it.
+  func detailClosedByUser() {
+    detail?.dismissedByUser()
   }
 }
 
@@ -303,7 +335,11 @@ extension EffectRequest {
   }
 
   var asOverlay: OverlayRequest? {
-    if case .overlay(let request) = self { request } else { nil }
+    if case .overlay(let request) = self, request.presentation != .detail { request } else { nil }
+  }
+
+  var asDetail: OverlayRequest? {
+    if case .overlay(let request) = self, request.presentation == .detail { request } else { nil }
   }
 
   var asFocus: FocusRequestValue? {

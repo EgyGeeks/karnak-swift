@@ -5,7 +5,7 @@ import SwiftUI
 /// the host's hooks. The sheet's ``ScreenModel`` follows an instance the engine owns and closes,
 /// so this view never closes it.
 struct SheetScreenView: View {
-  @ObservedObject var model: ScreenModel
+  let model: ScreenModel
   @Environment(\.karnakScreenStates) private var screenStates
 
   var body: some View {
@@ -23,7 +23,9 @@ struct SheetScreenView: View {
       // the screen's own `list`.
       ResolvedScreenView(
         screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
-        onInput: { model.input($0) }, focus: model.effects.focus, measuresViewport: true,
+        onEvent: { model.event($0, payload: $1, byUser: $2, generation: $3) },
+        onInput: { model.input($0) }, onFloatingDismiss: { model.floatingDismissed($0, $1) },
+        focus: model.effects.focus, measuresViewport: true,
         fillsSpace: false
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

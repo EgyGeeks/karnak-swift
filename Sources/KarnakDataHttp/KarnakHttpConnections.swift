@@ -14,15 +14,20 @@ import KarnakSwiftUI
 /// An invalid connection, or a name registered twice, is developer misuse: the client's
 /// initializer throws in debug, and in release it is logged and ignored. An app that doesn't add
 /// the module runs no `http` source: a source that names a connection fails on the device under its policy.
+///
+/// With `remote`, the app opts in to connections the project adds in the dashboard (``KarnakRemoteConnections``);
+/// without it, none is delivered.
 public struct KarnakHttpConnections: KarnakClientModule {
   public let connections: [KarnakHttpConnection]
+  public let remote: KarnakRemoteConnections?
 
-  public init(_ connections: [KarnakHttpConnection]) {
+  public init(_ connections: [KarnakHttpConnection], remote: KarnakRemoteConnections? = nil) {
     self.connections = connections
+    self.remote = remote
   }
 
   public func install(into config: KarnakClientConfig) {
-    config.setHttpConnections(connections: connections.map(Self.kotlin))
+    config.setHttpConnections(connections: connections.map(Self.kotlin), remote: remote?.kotlin())
   }
 
   private static func kotlin(_ connection: KarnakHttpConnection) -> HttpConnectionSwift {
@@ -40,12 +45,9 @@ public struct KarnakHttpConnections: KarnakClientModule {
     connection.timeoutMillis.map { kotlin.timeoutMillis = $0 }
     connection.offlineStaleMillis.map { kotlin.offlineStaleMillis = $0 }
     connection.headerProvider.map { provider in kotlin.addHeaderProvider(provider: provider) }
+    connection.onUnauthorized.map { hook in kotlin.setOnUnauthorized(hook: unauthorizedHook(hook)) }
     for sign in connection.interceptors {
-      kotlin.addInterceptor { request in
-        let signed = sign(
-          KarnakHttpRequest(url: request.url, method: request.method, headers: request.headers))
-        return HttpRequestSwift(url: signed.url, method: signed.method, headers: signed.headers)
-      }
+      kotlin.addInterceptor(interceptor: KarnakHttpRequest.bridge(sign))
     }
     return kotlin
   }

@@ -22,9 +22,9 @@ struct ChipGroupView: View {
         .accessibilityElement(children: .contain)
         .inputAccessibility(drawn)
     }
-    .onChange(of: focusedChip != nil) {
-      inputs.send(.focusChange(group.key, $0))
-      if $0 { focus.moved(to: group.key.value) }
+    .onChange(of: focusedChip != nil) { _, isFocused in
+      inputs.send(.focusChange(group.key, isFocused))
+      if isFocused { focus.moved(to: group.key.value) }
     }
     .onReceive(focus.moves) { if $0 != group.key.value { focusedChip = nil } }
     .onReceive(focus.requests) { key in

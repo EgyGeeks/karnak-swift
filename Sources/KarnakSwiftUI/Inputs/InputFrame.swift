@@ -80,7 +80,7 @@ struct PressTrackingStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
       .contentShape(Rectangle())
-      .onChange(of: configuration.isPressed) { pressed = $0 }
+      .onChange(of: configuration.isPressed) { _, isPressed in pressed = isPressed }
   }
 }
 
