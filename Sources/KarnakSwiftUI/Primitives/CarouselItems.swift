@@ -18,8 +18,54 @@ struct CarouselItems: View {
   @Environment(\.layoutDirection) private var direction
   @Environment(\.karnakActions) private var actions
   @State private var reporter = PageChangeReporter()
+  /// The `current` of the tree drawn last: the carousel scrolls only when a new tree moves it.
+  @State private var followed: Int
+
+  init(carousel: ResolvedCarousel, nodes: [ResolvedNode], metrics: CarouselMetrics, current: Binding<Int>) {
+    self.carousel = carousel
+    self.nodes = nodes
+    self.metrics = metrics
+    _current = current
+    _followed = State(initialValue: Int(carousel.current))
+  }
 
   var body: some View {
+    ScrollViewReader { reader in
+      row
+        .onAppear { start(reader) }
+        .onChange(of: carousel.current) { follow(Int(carousel.current), reader) }
+    }
+  }
+
+  /// Opens on the item the engine holds (``ResolvedCarousel/current``): the row starts at its first item, so a carousel
+  /// that opens further along scrolls there once it is laid out.
+  private func start(_ reader: ScrollViewProxy) {
+    guard followed > 0 else { return }
+    let target = followed
+    Task { @MainActor in scroll(to: target, reader, animated: false) }
+  }
+
+  /// Scrolls to `target`, the item the engine holds, when a new tree moves it: a `set_value` to
+  /// `node.<carousel>.current`, a tapped thumbnail (ADR 0040, D7). An item already shown (a swipe the engine has just
+  /// recorded) moves nothing.
+  private func follow(_ target: Int, _ reader: ScrollViewProxy) {
+    guard followed != target else { return }
+    followed = target
+    guard target != current else { return }
+    scroll(to: target, reader, animated: true)
+  }
+
+  private func scroll(to target: Int, _ reader: ScrollViewProxy, animated: Bool) {
+    guard nodes.indices.contains(target) else { return }
+    let key = nodes[target].key.value
+    if animated {
+      withAnimation { reader.scrollTo(key, anchor: .leading) }
+    } else {
+      reader.scrollTo(key, anchor: .leading)
+    }
+  }
+
+  private var row: some View {
     GeometryReader { proxy in
       let width = proxy.size.width
       let height = max(0, proxy.size.height - metrics.padding.top - metrics.padding.bottom)

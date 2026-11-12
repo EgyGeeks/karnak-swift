@@ -10,8 +10,15 @@ struct CarouselView: View {
   let carousel: ResolvedCarousel
   /// Which axes of the carousel's box its own parent sizes.
   let placement: ChildPlacement
-  @State private var current = 0
+  @State private var current: Int
   @Environment(\.karnakComponents) private var components
+
+  init(carousel: ResolvedCarousel, placement: ChildPlacement) {
+    self.carousel = carousel
+    self.placement = placement
+    // The item the engine holds: the dots and the first `pageChange` start there, not at item 0.
+    _current = State(initialValue: Int(carousel.current))
+  }
 
   var body: some View {
     let nodes = carousel.children.compactMap { components.drawnNode($0) }
