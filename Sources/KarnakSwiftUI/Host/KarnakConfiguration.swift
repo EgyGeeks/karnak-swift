@@ -25,6 +25,10 @@ public struct KarnakConfiguration {
   public var log: (@Sendable (String) -> Void)?
   /// The `Accept-Language` value. `nil` sends the user's preferred languages.
   public var acceptLanguage: String?
+  /// Answers the `Accept-Language` value for every request, for an app with its own language setting, such as
+  /// `{ settings.language.tag }`. It wins over ``acceptLanguage``, is called off the main thread, must return quickly
+  /// and must not throw. Tell the client when the answer changes with ``KarnakSwiftClient/languageChanged()``.
+  public var acceptLanguageProvider: (@Sendable () -> String)?
   /// Whether newer content replaces what an open screen shows as soon as it arrives.
   public var liveUpdates: Bool
   /// The most a screen's first draw waits for the release sync, in seconds: the first Karnak request of a cold start
@@ -58,6 +62,11 @@ public struct KarnakConfiguration {
   public var diskSize: Int64?
   /// About the most bytes of screens kept in memory. `nil` keeps the default, 4 MiB.
   public var memorySize: Int64?
+  /// The project screen drawn while another screen loads, such as `"loading"`, or `nil` for none. The
+  /// client prefetches it at start and draws it from the cache, statically (its sources never load and
+  /// its actions do nothing), after a screen's own ``screenStates(_:)`` entry and before the default.
+  /// It is never drawn, or waited for, while it isn't cached.
+  public var loadingScreen: String?
   /// The client-event pipeline (ADR 0022): on by default, every session. See ``KarnakClientEventsConfiguration``.
   public var clientEvents: KarnakClientEventsConfiguration
   /// Hears every new client event, off the main thread (``KarnakListener``). `nil` hears none.

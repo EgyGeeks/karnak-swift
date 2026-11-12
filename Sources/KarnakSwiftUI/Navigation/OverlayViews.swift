@@ -124,6 +124,7 @@ struct OverlayScreenView: View {
     switch model.phase {
     case .loading:
       views.loading(of: model.screenId, callSite: nil as (() -> EmptyView)?)
+        .compactStateFrame(if: !fillsSpace)
         .onAppear { model.screenId.map(screenStates.reportFallback) }
     case .content(let screen):
       if fillsSpace {
@@ -135,15 +136,17 @@ struct OverlayScreenView: View {
     case .failed(let error):
       views.error(
         of: model.screenId, error, retry: { model.retry() },
-        callSite: nil as ((KarnakScreenError, () -> Void) -> EmptyView)?)
+        callSite: nil as ((KarnakScreenError, () -> Void) -> EmptyView)?
+      ).compactStateFrame(if: !fillsSpace)
     }
   }
 
-  private var views: ScreenStateViews { ScreenStateViews(registry: screenStates, sdk: .contained) }
+  private var views: ScreenStateViews { ScreenStateViews(registry: screenStates, sdk: .screen) }
 
   private func content(_ screen: ResolvedScreen) -> some View {
     ResolvedScreenView(
       screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
+      onNear: { model.near($0) },
       onEvent: { model.event($0, payload: $1, byUser: $2, generation: $3) },
       onInput: { model.input($0) }, onFloatingDismiss: { model.floatingDismissed($0, $1) },
       focus: model.effects.focus, measuresViewport: true, fillsSpace: fillsSpace)

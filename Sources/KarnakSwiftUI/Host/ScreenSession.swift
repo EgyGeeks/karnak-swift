@@ -38,6 +38,8 @@ protocol ScreenSession: AnyObject {
   func click(_ handle: ActionHandle)
   /// Reports that the node whose `actions.appear` is `handle` is at least half visible.
   func appear(_ handle: ActionHandle)
+  /// Reports that the node whose `layout.onNear` is `handle` is near the viewport; safe to repeat.
+  func near(_ handle: ActionHandle)
   /// Reports the settled `event` of the node whose trigger is `handle` (`pageChange`), raised on the tree of
   /// `generation`, and whether a person caused it.
   func event(_ handle: ActionHandle, payload: KarnakValue, byUser: Bool, generation: Int64)
@@ -94,6 +96,8 @@ extension ScreenSession {
   func saveState() -> String? { nil }
   func restoreState(_ saved: String) {}
   func floatingDismissed(_ key: String, _ reason: FloatingDismissReason) {}
+  // Instances without data boundaries (fakes, previews) start no sources.
+  func near(_ handle: ActionHandle) {}
 
   /// Sends one input event to the instance.
   func input(_ event: InputEvent) {
@@ -240,6 +244,10 @@ final class ControllerSession: ScreenSession {
 
   func appear(_ handle: ActionHandle) {
     controller.appear(handle: handle)
+  }
+
+  func near(_ handle: ActionHandle) {
+    controller.near(handle: handle)
   }
 
   func event(_ handle: ActionHandle, payload: KarnakValue, byUser: Bool, generation: Int64) {

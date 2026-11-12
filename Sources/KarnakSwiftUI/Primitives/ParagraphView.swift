@@ -16,11 +16,13 @@ struct ParagraphView: View {
   /// Where the lines start, in place of the paragraph's own `textAlign`: a text field's placeholder takes its
   /// field's alignment (``FieldTextLayout``).
   var alignment: TextAlignment?
+  /// The text node's `elapsed` handle, raised once when a countdown of the paragraph reaches zero.
+  var elapsed: ActionHandle?
   @Environment(\.karnakFonts) private var fonts
 
   var body: some View {
     ThemedParagraph(
-      paragraph: paragraph, isLabelled: isLabelled, alignment: alignment,
+      paragraph: paragraph, isLabelled: isLabelled, alignment: alignment, elapsed: elapsed,
       fonts: fonts ?? .unavailable)
   }
 }
@@ -31,18 +33,27 @@ private struct ThemedParagraph: View {
   let paragraph: ResolvedParagraph
   let isLabelled: Bool
   let alignment: TextAlignment?
+  let elapsed: ActionHandle?
   let fonts: ThemeFontRegistry
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.karnakActions) private var actions
+  @State private var watch = ElapsedWatch()
 
   var body: some View {
     if let tick = Countdown(paragraph) {
       TimelineView(.periodic(from: tick.firstTick, by: 1)) { timeline in
-        content(nowMillis: Int64((timeline.date.timeIntervalSince1970 * 1000).rounded()))
+        let nowMillis = Int64((timeline.date.timeIntervalSince1970 * 1000).rounded())
+        content(nowMillis: nowMillis)
+          .onChange(of: nowMillis, initial: true) { _, now in raiseElapsed(at: now) }
       }
     } else {
       content(nowMillis: nil)
     }
+  }
+
+  private func raiseElapsed(at nowMillis: Int64) {
+    guard let elapsed, watch.elapsed(paragraph, at: nowMillis) else { return }
+    actions.event(elapsed, payload: elapsedPayload, byUser: false)
   }
 
   private func content(nowMillis: Int64?) -> some View {
@@ -92,7 +103,7 @@ private struct ThemedParagraph: View {
         // unless the node has a label.
         Text(verbatim: "\u{200B}").font(styled.font).accessibilityHidden(!isLabelled)
       } else {
-        Text(styled.text)
+        RunBoxes.text(styled)
       }
     }
     .lineLimit(paragraph.maxLines.map { Int($0.int32Value) })

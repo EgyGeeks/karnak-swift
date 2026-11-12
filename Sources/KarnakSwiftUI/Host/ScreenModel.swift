@@ -214,6 +214,11 @@ final class ScreenModel {
     session?.appear(handle)
   }
 
+  /// Sends the near report of `handle`, a node near the viewport, to the open screen; nothing happens without one.
+  func near(_ handle: ActionHandle) {
+    session?.near(handle)
+  }
+
   /// Sends a node's settled event, such as a carousel's `pageChange`, to the open screen; nothing happens without one.
   func event(_ handle: ActionHandle, payload: KarnakValue, byUser: Bool, generation: Int64) {
     session?.event(handle, payload: payload, byUser: byUser, generation: generation)

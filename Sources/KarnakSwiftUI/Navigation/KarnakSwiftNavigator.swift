@@ -23,6 +23,11 @@ public final class KarnakSwiftNavigator: @unchecked Sendable {
     navigator.entryRemoved(entryId: entryId)
   }
 
+  /// The Kotlin navigator's screen events for `observer`, on the thread that made them.
+  func observing(_ observer: KarnakCore.KarnakScreenObserver) -> any KotlinAutoCloseable {
+    navigator.observeScreens(dispatcher: nil, observer: observer)
+  }
+
   /// Opens `screenId` as the entry `entryId` of the host's stack (or as a screen of its own when
   /// nil), for the view that draws it.
   @MainActor

@@ -16,14 +16,16 @@ extension EnvironmentValues {
   @Entry var karnakDotsObserver: ((String, CarouselDotsDrawing) -> Void)?
 }
 
-/// The dots below a carousel's items (`docs/renderer-contract.md`, Display primitives, `carousel`): one per item,
-/// centred, the current one in `selectedColor`. They are decorative, so hidden from accessibility, and they change at
+/// The dots below a carousel's items (`docs/renderer-contract.md`, Display primitives, `carousel` and `pager`): one per
+/// item, centred, the current one in `selectedColor`; a vertical pager's are a column, top to bottom. They are decorative, so hidden from accessibility, and they change at
 /// once: nothing animates, with or without reduced motion.
 struct CarouselDots: View {
   let key: String
   let indicator: ResolvedCarouselIndicator
   let count: Int
   let current: Int
+  /// The dots run top to bottom, for a vertical pager.
+  var vertical = false
   @Environment(\.layoutDirection) private var direction
   @Environment(\.karnakDotsObserver) private var observer
   @State private var width: CGFloat = 0
@@ -35,10 +37,13 @@ struct CarouselDots: View {
     let other = resolvedColor(indicator.color)
     Canvas { context, size in
       let starts = carouselDotStarts(
-        count: count, dot: dot, gap: gap, width: size.width, current: current)
+        count: count, dot: dot, gap: gap, width: vertical ? size.height : size.width, current: current)
       for (index, start) in starts.enumerated() {
         let left = direction == .rightToLeft ? size.width - start - dot : start
-        let rect = CGRect(x: left, y: (size.height - dot) / 2, width: dot, height: dot)
+        let rect =
+          vertical
+          ? CGRect(x: (size.width - dot) / 2, y: start, width: dot, height: dot)
+          : CGRect(x: left, y: (size.height - dot) / 2, width: dot, height: dot)
         context.fill(Path(ellipseIn: rect), with: .color(index == current ? selected : other))
       }
     }

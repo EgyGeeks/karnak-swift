@@ -6,7 +6,7 @@ import SwiftUI
 /// server-driven (`docs/integration.md`, Resources for your own screens). Static and Karnak screens
 /// then read the same copy, and a change on the platform reaches installed apps
 /// without a release. Get it from ``KarnakSwiftClient/resources``, or in a view from
-/// `@Environment(\.karnakResources)`, which ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)``
+/// `@Environment(\.karnakResources)`, which ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:onScreen:overlays:)``
 /// sets.
 ///
 /// ```swift

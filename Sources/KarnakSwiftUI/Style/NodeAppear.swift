@@ -6,6 +6,10 @@ extension EnvironmentValues {
   /// window clipped by the scroll views around the screen (``ViewportProbe``). Nil outside a screen.
   @Entry var karnakViewport: CGRect?
 
+  /// The screen's own viewport, in global coordinates: ``karnakViewport`` as the screen sets it, which no list,
+  /// pager or carousel inside narrows or clears. `layout.onNear` grows it (``NearArea``). Nil outside a screen.
+  @Entry var karnakScreenViewport: CGRect?
+
   /// Whether the screen is kept in the view tree under another one (an entry of a detail pane
   /// below the top one): laid out for its state, but nothing in it is visible.
   @Entry var karnakCovered = false

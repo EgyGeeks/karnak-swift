@@ -81,11 +81,13 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     config.appVersion = configuration.appVersion
     config.debug = configuration.debug
     config.acceptLanguage = configuration.acceptLanguage
+    config.acceptLanguageProvider = configuration.acceptLanguageProvider
     config.liveUpdates = configuration.liveUpdates
     config.syncWait = Self.milliseconds(of: configuration.syncWait)
     config.bundledResources = configuration.bundledResources
     config.routeManifest = configuration.routeManifest
     config.routeManifestJson = configuration.routeManifestJson
+    config.loadingScreen = configuration.loadingScreen
     configuration.diskSize.map { config.diskSize = $0 }
     configuration.memorySize.map { config.memorySize = $0 }
     let log = configuration.log ?? { NSLog("%@", $0) }
@@ -114,7 +116,8 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     savedStateScope = "\(configuration.baseUrl) \(configuration.clientKey)"
     resourcesCore = ResourcesCore(client: client, debug: configuration.debug, log: log)
     screenStates = ScreenStatesRegistry(
-      configuration.screenStatesFactories, debug: configuration.debug, log: log)
+      configuration.screenStatesFactories, debug: configuration.debug, log: log,
+      loadingScreen: { [client] in client.currentLoadingScreen })
   }
 
   /// Gets the client ready for the first screen, after the first frame: opens the cache,
@@ -149,6 +152,14 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   /// of the open screens that read it. It carries no credential, and is separate from ``setUser(id:attributes:)``.
   public func setSignedIn(_ signedIn: Bool?) {
     signedInState.set(value: signedIn.map { KotlinBoolean(bool: $0) })
+  }
+
+  /// Tells the client the language its ``KarnakConfiguration/acceptLanguageProvider`` answers changed: every open
+  /// screen loads again in it, and the app's resources reload their strings. Content stays until the new copy
+  /// arrives. Cached screens are kept per language, so a screen of the old language never shows for the new one;
+  /// this call only makes open screens fetch now. Call it from the app's language setter.
+  public func languageChanged() {
+    client.languageChanged()
   }
 
   /// Signs the user out: clears their cached screens and stops sending them.

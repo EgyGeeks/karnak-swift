@@ -23,6 +23,7 @@ struct ScreenPhaseView<Loading: View, Failure: View>: View {
     case .content(let screen):
       ResolvedScreenView(
         screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
+        onNear: { model.near($0) },
         onEvent: { model.event($0, payload: $1, byUser: $2, generation: $3) },
         onInput: { model.input($0) }, onFloatingDismiss: { model.floatingDismissed($0, $1) },
         focus: model.effects.focus, measuresViewport: true,

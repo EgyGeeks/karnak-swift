@@ -24,6 +24,7 @@ struct InputFrame<Control: View>: View {
       ReservedTouchTarget(minimum: placement.reservesTouchTarget ? touchTarget(of: input) : 0)
     )
     .modifier(NodeAppear(handle: input.onAppear))
+    .modifier(NodeNear(handle: input.layout.onNear))
   }
 }
 

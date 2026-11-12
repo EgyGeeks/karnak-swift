@@ -75,11 +75,13 @@ struct CarouselScrollExtent: Equatable {
   var atEnd: Bool { overflows && offset >= maximum - 1 }
 }
 
-/// Finds the horizontal scroll view it sits in and reports how far it has scrolled, each time it changes: a zero-size
-/// view in the scroll view's background, as ``ScrollProbe`` finds the host's.
+/// Finds the scroll view it sits in and reports how far it has scrolled along its axis, each time it changes: a
+/// zero-size view in the scroll view's background, as ``ScrollProbe`` finds the host's.
 struct CarouselScrollProbe: UIViewRepresentable {
   /// Whether the layout runs right to left, where the content starts at the right edge.
   let rightToLeft: Bool
+  /// The scroll view scrolls top to bottom (a vertical pager), not along the line.
+  var vertical = false
   /// Receives the extent when the scroll view scrolls, resizes or its content changes size.
   let onChange: (CarouselScrollExtent) -> Void
   /// Called when a finger goes down to drag the scroll view.
@@ -96,6 +98,7 @@ struct CarouselScrollProbe: UIViewRepresentable {
 
   func updateUIView(_ view: CarouselScrollProbeView, context: Context) {
     view.rightToLeft = rightToLeft
+    view.vertical = vertical
     view.onChange = onChange
     view.onDragStart = onDragStart
     view.onDragEnd = onDragEnd
@@ -106,6 +109,7 @@ struct CarouselScrollProbe: UIViewRepresentable {
 /// The view behind ``CarouselScrollProbe``.
 final class CarouselScrollProbeView: UIView {
   var rightToLeft = false
+  var vertical = false
   var onChange: ((CarouselScrollExtent) -> Void)?
   var onDragStart: () -> Void = {}
   var onDragEnd: () -> Void = {}
@@ -126,7 +130,13 @@ final class CarouselScrollProbeView: UIView {
     observations = []
     dragged?.removeTarget(self, action: #selector(panned))
     dragged = nil
-    guard let scroll = scrollView else { return }
+    report()
+  }
+
+  /// Starts watching the scroll view it sits in, once there is one: SwiftUI may put this view in the window before the
+  /// scroll view is among its ancestors, and a drag that began before it was found would go unseen.
+  private func attachIfNeeded() {
+    guard dragged == nil, let scroll = scrollView else { return }
     scroll.panGestureRecognizer.addTarget(self, action: #selector(panned))
     dragged = scroll.panGestureRecognizer
     observations = [
@@ -134,7 +144,6 @@ final class CarouselScrollProbeView: UIView {
       scroll.observe(\.contentSize) { [weak self] _, _ in self?.reportOnMain() },
       scroll.observe(\.bounds) { [weak self] _, _ in self?.reportOnMain() },
     ]
-    report()
   }
 
   /// The pan recognizer of the scroll view, which tells a person's drag from the scroll the engine asks for.
@@ -155,15 +164,23 @@ final class CarouselScrollProbeView: UIView {
 
   /// Reads the scroll view again and reports it when it changed.
   func report() {
+    attachIfNeeded()
     guard let scroll = scrollView else { return }
     let insets = scroll.adjustedContentInset
-    let maximum = max(
-      0, scroll.contentSize.width + insets.left + insets.right - scroll.bounds.width)
-    let physical = scroll.contentOffset.x + insets.left
-    // Along the content from the start edge: the content of a right-to-left carousel starts at the right edge.
-    let extent = CarouselScrollExtent(
-      offset: carouselPhysicalOffset(logical: physical, maximum: maximum, rightToLeft: rightToLeft),
-      maximum: maximum)
+    let extent: CarouselScrollExtent
+    if vertical {
+      extent = CarouselScrollExtent(
+        offset: scroll.contentOffset.y + insets.top,
+        maximum: max(0, scroll.contentSize.height + insets.top + insets.bottom - scroll.bounds.height))
+    } else {
+      let maximum = max(
+        0, scroll.contentSize.width + insets.left + insets.right - scroll.bounds.width)
+      let physical = scroll.contentOffset.x + insets.left
+      // Along the content from the start edge: the content of a right-to-left carousel starts at the right edge.
+      extent = CarouselScrollExtent(
+        offset: carouselPhysicalOffset(logical: physical, maximum: maximum, rightToLeft: rightToLeft),
+        maximum: maximum)
+    }
     guard extent != last else { return }
     last = extent
     onChange?(extent)

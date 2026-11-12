@@ -61,6 +61,7 @@ struct ButtonView: View {
     .modifier(TapBarrier(isActive: button.semantics.disabled, touchTarget: target))
     .modifier(ReservedTouchTarget(minimum: placement.reservesTouchTarget ? target : 0))
     .modifier(NodeAppear(handle: button.onAppear))
+    .modifier(NodeNear(handle: button.layout.onNear))
   }
 }
 

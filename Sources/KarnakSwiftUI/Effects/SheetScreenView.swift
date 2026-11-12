@@ -17,12 +17,14 @@ struct SheetScreenView: View {
     switch model.phase {
     case .loading:
       views.loading(of: model.screenId, callSite: nil as (() -> EmptyView)?)
+        .compactStateFrame()
         .onAppear { model.screenId.map(screenStates.reportFallback) }
     case .content(let screen):
       // Bounded by the sheet, not scrolled: a weighted child takes the height left, and scrolling is
       // the screen's own `list`.
       ResolvedScreenView(
         screen: screen, onAction: { model.click($0) }, onAppear: { model.appear($0) },
+        onNear: { model.near($0) },
         onEvent: { model.event($0, payload: $1, byUser: $2, generation: $3) },
         onInput: { model.input($0) }, onFloatingDismiss: { model.floatingDismissed($0, $1) },
         focus: model.effects.focus, measuresViewport: true,
@@ -32,9 +34,10 @@ struct SheetScreenView: View {
     case .failed(let error):
       views.error(
         of: model.screenId, error, retry: { model.retry() },
-        callSite: nil as ((KarnakScreenError, () -> Void) -> EmptyView)?)
+        callSite: nil as ((KarnakScreenError, () -> Void) -> EmptyView)?
+      ).compactStateFrame()
     }
   }
 
-  private var views: ScreenStateViews { ScreenStateViews(registry: screenStates, sdk: .contained) }
+  private var views: ScreenStateViews { ScreenStateViews(registry: screenStates, sdk: .screen) }
 }

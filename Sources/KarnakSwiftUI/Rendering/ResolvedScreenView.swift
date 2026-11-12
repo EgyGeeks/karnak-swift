@@ -21,6 +21,9 @@ struct ResolvedScreenView: View {
   /// Called with the handle of a node with `actions.appear` each time at least half of it is
   /// inside the viewport. The engine runs the actions once per node.
   var onAppear: (ActionHandle) -> Void = { _ in }
+  /// Called with the `layout.onNear` handle of a node that comes near the viewport (``NearArea``), once per handle
+  /// while the node's view lives. The engine ignores a report it already acted on.
+  var onNear: (ActionHandle) -> Void = { _ in }
   /// Called with a node's settled event (a carousel's `pageChange`): its handle, the payload, whether a person caused
   /// it, and the generation of the tree it was raised on.
   var onEvent: (ActionHandle, KarnakValue, Bool, Int64) -> Void = { _, _, _, _ in }
@@ -34,7 +37,7 @@ struct ResolvedScreenView: View {
   /// Receives renderer diagnostics, such as a node type this renderer can't draw.
   var diagnostics: (String) -> Void = RendererDiagnostics.systemLog
   /// Whether the view reads what the window shows of it (``ViewportProbe``), which `actions.appear`
-  /// needs. On for the screens a host presents in a window; off where there is none to read, such as
+  /// and `layout.onNear` need. On for the screens a host presents in a window; off where there is none to read, such as
   /// the image renderer of the snapshot tests, which can't draw the probe's UIKit view.
   var measuresViewport = false
   /// Whether the view fills the space it is offered (a screen) or takes only the size its
@@ -60,6 +63,7 @@ struct ResolvedScreenView: View {
   var body: some View {
     actions.handler = onAction
     actions.appearHandler = onAppear
+    actions.nearHandler = onNear
     actions.eventHandler = onEvent
     actions.generation = screen.generation
     inputs.handler = onInput
@@ -85,6 +89,7 @@ struct ResolvedScreenView: View {
     .environment(\.karnakInputs, inputs)
     .environment(\.karnakInputFocus, focus ?? ownFocus)
     .environment(\.karnakViewport, viewport)
+    .environment(\.karnakScreenViewport, viewport)
     .environment(\.layoutDirection, layoutDirection(screen.layoutDirection))
     .task(id: ObjectIdentifier(screen)) {
       RendererDiagnostics.reportUnsupported(in: screen, to: diagnostics)

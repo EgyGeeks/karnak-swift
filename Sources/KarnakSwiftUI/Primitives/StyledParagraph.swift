@@ -21,6 +21,10 @@ struct StyledParagraph {
   let linkColor: Color?
   /// The scaled font size of each run, in order.
   let runPoints: [CGFloat]
+  /// Each run on its own, in order, for a paragraph drawn run by run (``RunBoxes``).
+  let parts: [AttributedString]
+  /// The box behind each run, in order; nil for a run without one.
+  let boxes: [RunBox?]
   private let links: [ActionHandle]
 
   /// - Parameter postScriptName: The registered font of a theme face, if it is ready. Faces
@@ -38,6 +42,8 @@ struct StyledParagraph {
     var text = AttributedString()
     var links: [ActionHandle] = []
     var runPoints: [CGFloat] = []
+    var parts: [AttributedString] = []
+    var boxes: [RunBox?] = []
     for (index, run) in paragraph.runs.enumerated() {
       let size = textPoints(sp: run.font.size, traits: traits)
       var part = AttributedString(Self.text(of: run, at: nowMillis))
@@ -46,11 +52,16 @@ struct StyledParagraph {
       part.tracking = tracking(em: run.font.letterSpacing, fontPoints: size)
       if run.underline { part.underlineStyle = .single }
       if run.strikethrough { part.strikethroughStyle = .single }
+      if run.baselineShift != 0 { part.baselineOffset = CGFloat(run.baselineShift) * size }
       if let link = run.link {
         part.link = URL(string: "\(Self.linkScheme):\(links.count)")
         links.append(link)
       }
+      let box = run.background.map { RunBox(index: index, $0, layer: layer) }
+      if let box, !RunBoxes.drawn { part.backgroundColor = box.color }
       text.append(part)
+      parts.append(part)
+      boxes.append(box)
       runPoints.append(size)
     }
     let basePoints = textPoints(sp: paragraph.font.size, traits: traits)
@@ -68,6 +79,8 @@ struct StyledParagraph {
     edgeSpacing = (leading ?? 0) / 2
     linkColor = paragraph.runs.first { $0.link != nil }.map { resolvedColor($0.color) }
     self.runPoints = runPoints
+    self.parts = parts
+    self.boxes = boxes
     self.links = links
   }
 

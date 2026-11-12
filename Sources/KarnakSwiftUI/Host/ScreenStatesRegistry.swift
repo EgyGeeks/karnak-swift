@@ -1,3 +1,4 @@
+import KarnakCore
 import SwiftUI
 
 /// A ``KarnakScreenStates`` with its types erased, so the registry can hold one per screen.
@@ -32,14 +33,22 @@ final class ScreenStatesRegistry: @unchecked Sendable {
   static let empty = ScreenStatesRegistry(ScreenStatesFactories(), debug: false, log: { _ in })
 
   private let factories: ScreenStatesFactories
+  private let cachedLoadingScreen: @MainActor () -> CachedLoadingScreen?
   private let debug: Bool
   private let log: @Sendable (String) -> Void
   private var screens: [String: AnyScreenStates] = [:]
   private var fallback: AnyScreenStates?
   private var reported: Set<String> = []
+  private var checkedLoadingScreen: (json: String, resolves: Bool)?
 
-  init(_ factories: ScreenStatesFactories, debug: Bool, log: @escaping @Sendable (String) -> Void) {
+  /// `loadingScreen` reads the app's loading screen (``KarnakConfiguration/loadingScreen``) while the
+  /// client holds it cached, else `nil`.
+  init(
+    _ factories: ScreenStatesFactories, debug: Bool, log: @escaping @Sendable (String) -> Void,
+    loadingScreen: @escaping @MainActor () -> CachedLoadingScreen? = { nil }
+  ) {
     self.factories = factories
+    self.cachedLoadingScreen = loadingScreen
     self.debug = debug
     self.log = log
   }
@@ -51,15 +60,47 @@ final class ScreenStatesRegistry: @unchecked Sendable {
   /// screen id yet and passes `nil`, which skips the entry.
   @MainActor
   func states(for screenId: String?) -> AnyScreenStates? {
-    if let screenId, let made = screens[screenId] { return made }
-    if let screenId, let make = factories.screens[screenId] {
-      let made = make()
-      screens[screenId] = made
-      return made
-    }
+    entry(for: screenId) ?? defaultStates()
+  }
+
+  /// The entry registered for `screenId`, made the first time it is asked for; `nil` for none.
+  @MainActor
+  func entry(for screenId: String?) -> AnyScreenStates? {
+    guard let screenId else { return nil }
+    if let made = screens[screenId] { return made }
+    guard let make = factories.screens[screenId] else { return nil }
+    let made = make()
+    screens[screenId] = made
+    return made
+  }
+
+  /// The registered default, made the first time it is asked for; `nil` for none.
+  @MainActor
+  func defaultStates() -> AnyScreenStates? {
     if let fallback { return fallback }
     fallback = factories.defaultFactory?()
     return fallback
+  }
+
+  /// The app's loading screen while the client holds it cached and its body resolves, else `nil`, so a
+  /// body that can't be drawn falls to the next view instead of leaving the screen blank. Each body is
+  /// resolved once to check it.
+  @MainActor
+  func loadingScreen() -> CachedLoadingScreen? {
+    guard let screen = cachedLoadingScreen() else { return nil }
+    if checkedLoadingScreen?.json != screen.screenJson {
+      checkedLoadingScreen = (screen.screenJson, Self.resolves(screen))
+    }
+    return checkedLoadingScreen?.resolves == true ? screen : nil
+  }
+
+  @MainActor
+  private static func resolves(_ screen: CachedLoadingScreen) -> Bool {
+    let environment = DeviceSizes.current.environment(
+      colorScheme: .light, layoutDirection: .leftToRight, width: 0)
+    let state = ScreenResolversKt.screenResolver(debug: false, log: { _ in })
+      .resolve(screenJson: screen.screenJson, themeJson: screen.themeJson, environment: environment)
+    return state is ScreenStateContent
   }
 
   /// In a debug client, logs once per id that `screenId` has no entry of its own and falls back, when

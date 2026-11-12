@@ -15,7 +15,8 @@ import SwiftUI
 /// ```
 ///
 /// The views are drawn in the space the screen is given: all of it for a full screen, and only what they
-/// need in a section. One instance serves every visit to its screen for the client's lifetime, so keep
+/// need in a section. In a sheet they are held to a compact, fixed height, and ``EnvironmentValues/karnakScreenPlacement``
+/// says where they are drawn. One instance serves every visit to its screen for the client's lifetime, so keep
 /// it free of state that outlives a screen.
 @MainActor
 public protocol KarnakScreenStates {
@@ -33,6 +34,20 @@ public protocol KarnakScreenStates {
   ///   - kind: Why it couldn't be loaded.
   ///   - retry: Loads the screen again, showing ``loading()`` until it loads or fails again.
   @ViewBuilder func error(kind: KarnakScreenError.Kind, retry: @escaping () -> Void) -> ErrorContent
+}
+
+/// Where the loading or error view of a screen is drawn.
+public enum KarnakScreenPlacement: Sendable {
+  /// A full screen or a section: the space the host gives.
+  case screen
+  /// A sheet or another contained overlay, held to a compact height while the screen has no content.
+  case contained
+}
+
+extension EnvironmentValues {
+  /// Where the ``KarnakScreenStates`` view being drawn is placed, so an app can draw a compact skeleton in a
+  /// sheet and a full one on a screen. It is ``KarnakScreenPlacement/screen`` outside a state view.
+  @Entry public var karnakScreenPlacement = KarnakScreenPlacement.screen
 }
 
 /// Registers the ``KarnakScreenStates`` of the screens, inside ``KarnakConfiguration/screenStates(_:)``.

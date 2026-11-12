@@ -127,7 +127,7 @@ extension View {
   @ViewBuilder
   fileprivate func carouselSnap(_ padding: EdgeInsets, snaps: Bool) -> some View {
     if snaps {
-      self.scrollTargetBehavior(.viewAligned)
+      self.scrollTargetBehavior(.viewAligned(limitBehavior: .always))
         .contentMargins(.leading, padding.leading, for: .scrollContent)
         .contentMargins(.trailing, padding.trailing, for: .scrollContent)
     } else {
@@ -139,8 +139,9 @@ extension View {
 /// The carousel's event, as its `actions` names it (`docs/protocol.md`, Component events and node values).
 private let pageChangeEvent = "pageChange"
 
-/// The trigger of a carousel's `pageChange` and the keys of its items.
-private struct PageTarget: Equatable {
+/// The trigger of a carousel's or a pager's `pageChange` and the keys of its items, watched as one, so a new trigger
+/// is picked up as new keys are.
+struct PageTarget: Equatable {
   let handle: ActionHandle?
   let keys: [String]
 }

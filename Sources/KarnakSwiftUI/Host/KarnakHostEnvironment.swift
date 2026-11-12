@@ -11,6 +11,7 @@ struct KarnakHostCallbacks {
   var onDismiss: (() -> Void)?
   var onOpenScreen: ((_ screenId: String, _ params: [String: Any]) -> Void)?
   var onNavigation: ((_ request: KarnakNavigation) -> Void)?
+  var onScreen: (@MainActor (_ event: KarnakScreenEvent) -> Void)?
   var overlays: KarnakOverlays = .sdk
 
   /// These hooks with `defaultNavigation` as `onNavigation` unless the host gave `onNavigation`
@@ -67,6 +68,11 @@ extension View {
   ///     open the screen with `KarnakScreen(_:params:entryId:)`, and report each entry your router
   ///     drops with ``KarnakSwiftNavigator/entryRemoved(_:)``. It wins over `onOpenScreen` and
   ///     over `.karnakDestinations()`.
+  ///   - onScreen: Called with every screen the SDK shows or ends, for analytics
+  ///     (``KarnakScreenEvent``): the screens of your stack, of a `modal`, a `sheet` or a `detail`
+  ///     pane, the screens of a `show_sheet` and the steps of a flow, with the flow's id, revision
+  ///     and step. Ids only, never a param. Your own start screen has no entry and is yours to
+  ///     report. It runs on the main thread.
   ///   - overlays: Who draws the screens that open as a `modal` or a `sheet`.
   ///     ``KarnakOverlays/sdk``, the default, draws them in the SDK's contained stack, also for a
   ///     screen your own router drew, so `onNavigation` hears only requests for your stack.
@@ -81,6 +87,7 @@ extension View {
     onDismiss: (() -> Void)? = nil,
     onOpenScreen: ((_ screenId: String, _ params: [String: Any]) -> Void)? = nil,
     onNavigation: ((_ request: KarnakNavigation) -> Void)? = nil,
+    onScreen: (@MainActor (_ event: KarnakScreenEvent) -> Void)? = nil,
     overlays: KarnakOverlays = .sdk
   ) -> some View {
     karnakHost(
@@ -88,12 +95,13 @@ extension View {
       callbacks: KarnakHostCallbacks(
         onNavigate: onNavigate, onOpenUrl: onOpenUrl, onCustom: onCustom, onTrack: onTrack,
         onDismiss: onDismiss, onOpenScreen: onOpenScreen, onNavigation: onNavigation,
-        overlays: overlays)
+        onScreen: onScreen, overlays: overlays)
     )
     .environment(\.karnakFonts, client.fonts)
     .environment(\.karnakScreenStates, client.screenStates)
     .environment(\.karnakComponents, client.components)
     .modifier(KarnakResourcesHost(core: client.resourcesCore))
+    .modifier(KarnakScreenEventsHost(client: client, onScreen: onScreen))
   }
 
   func karnakHost(

@@ -48,6 +48,7 @@ extension View {
         ReservedTouchTarget(minimum: placement.reservesTouchTarget ? touchTarget(of: node) : 0)
       )
       .modifier(NodeAppear(handle: node.onAppear))
+      .modifier(NodeNear(handle: node.layout.onNear))
   }
 
   /// The drawn part of a node's common style: padding, the sized box, clip, shadows and
@@ -126,7 +127,7 @@ private struct NodeClip: ViewModifier {
   }
 }
 
-/// A node's semantics as SwiftUI reads them. A list or a carousel speaks its size ("3 items") as its value, labelled or
+/// A node's semantics as SwiftUI reads them. A list, a carousel or a pager speaks its size ("3 items") as its value, labelled or
 /// not: SwiftUI has no collection count of its own (`docs/renderer-contract.md`, `list` and `carousel`,
 /// Accessibility).
 func accessibilitySemantics(of node: ResolvedNode) -> AccessibilitySemantics {
@@ -136,6 +137,9 @@ func accessibilitySemantics(of node: ResolvedNode) -> AccessibilitySemantics {
   }
   if let carousel = node as? ResolvedCarousel, semantics.stateDescription == nil {
     semantics.stateDescription = carousel.countLabel
+  }
+  if let pager = node as? ResolvedPager, semantics.stateDescription == nil {
+    semantics.stateDescription = pager.countLabel
   }
   return semantics
 }

@@ -96,7 +96,7 @@ enum NodeRenderers {
   static var kinds: Set<String> { Set(table.keys) }
 
   nonisolated(unsafe) private static let table: [String: NodeRegistration] =
-    layouts().merging(contents()) { $1 }.merging(inputs()) { $1 }
+    layouts().merging(scrollers()) { $1 }.merging(contents()) { $1 }.merging(inputs()) { $1 }
 
   nonisolated(unsafe) private static let custom: NodeRegistration = .of(
     ResolvedCustom.self, drawsOwnBox: true, children: { $0.fallback.map { [$0] } ?? [] },
@@ -150,6 +150,12 @@ enum NodeRenderers {
       draw: { stack, placement in
         AnyView(StackView(stack: stack, placement: placement))
       })
+    return table
+  }
+
+  /// The primitives that scroll their children: `list`, `carousel` and `pager`.
+  private static func scrollers() -> [String: NodeRegistration] {
+    var table: [String: NodeRegistration] = [:]
     table["list"] = .of(
       ResolvedList.self, isContainer: true, reportsFrame: true, children: { $0.children },
       draw: { list, placement in
@@ -160,6 +166,11 @@ enum NodeRenderers {
       draw: { carousel, placement in
         AnyView(CarouselView(carousel: carousel, placement: placement))
       })
+    table["pager"] = .of(
+      ResolvedPager.self, reportsFrame: true, children: { $0.children },
+      draw: { pager, placement in
+        AnyView(PagerView(pager: pager, placement: placement))
+      })
     return table
   }
 
@@ -169,7 +180,10 @@ enum NodeRenderers {
     table["text"] = .of(
       ResolvedText.self, contentPosition: { ContentPosition($0.paragraph.textAlign) },
       draw: { text, _ in
-        AnyView(ParagraphView(paragraph: text.paragraph, isLabelled: text.semantics.label != nil))
+        AnyView(
+          ParagraphView(
+            paragraph: text.paragraph, isLabelled: text.semantics.label != nil,
+            elapsed: text.events[elapsedEvent]))
       })
     table["image"] = .of(
       ResolvedImage.self,

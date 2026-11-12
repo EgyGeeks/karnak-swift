@@ -51,14 +51,19 @@ public final class KarnakSectionState {
 
   /// Opens the section's document and starts its data sources. Calling it again does nothing.
   public func open() {
-    guard !isOpen else { return }
-    isOpen = true
-    // The device's own traits, so sources that bind `context.colorScheme` load once for the right one.
+    // Without a view the device's own traits are all there is.
     let dark = UITraitCollection.current.userInterfaceStyle == .dark
     let rtl = UIApplication.shared.userInterfaceLayoutDirection == .rightToLeft
+    open(colorScheme: dark ? .dark : .light, layoutDirection: rtl ? .rightToLeft : .leftToRight)
+  }
+
+  /// Opens with the scheme and direction the host's SwiftUI environment resolves (an app's own
+  /// `.environment(\.colorScheme, …)` included), so sources that bind `context.colorScheme` load once for it.
+  func open(colorScheme: ColorScheme, layoutDirection: LayoutDirection) {
+    guard !isOpen else { return }
+    isOpen = true
     let environment = DeviceSizes.current.environment(
-      colorScheme: dark ? .dark : .light, layoutDirection: rtl ? .rightToLeft : .leftToRight,
-      width: 0)
+      colorScheme: colorScheme, layoutDirection: layoutDirection, width: 0)
     model.start(
       SessionKey(screenId: id, params: params, opener: opener), opener: opener, params: params,
       environment: environment)
@@ -96,7 +101,7 @@ struct HoistedSectionView<Loading: View, Failure: View>: View {
     let _ = model.updateHostCallbacks(
       hostCallbacks.withDefault(navigation: stackLevel.map(karnakNavigationTarget)))
     // swiftlint:disable:next redundant_discardable_let
-    let _ = state.open()
+    let _ = state.open(colorScheme: colorScheme, layoutDirection: layoutDirection)
     ZStack {
       ScreenPhaseView(
         model: model, screenId: state.id, fillsSpace: false, loading: loading, failure: failure,

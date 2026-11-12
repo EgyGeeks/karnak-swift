@@ -25,7 +25,7 @@ import SwiftUI
 /// ``KarnakConfiguration/screenStates(_:)``, else ``KarnakLoadingView``; its steps draw the views registered for their
 /// screens. The flow needs the flows module
 /// (`KarnakFlows()` of `KarnakNavigation` in ``KarnakConfiguration/modules``) and the client that
-/// ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)``
+/// ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:onScreen:overlays:)``
 /// provides; without them it calls `onFinish` with `cancelled` and logs why. A `route` step shows
 /// the screen registered with ``SwiftUI/View/karnakRoute(_:content:)``.
 ///

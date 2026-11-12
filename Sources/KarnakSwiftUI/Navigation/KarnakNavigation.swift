@@ -43,7 +43,7 @@ public enum KarnakNavigationTarget: Equatable, Sendable {
 }
 
 /// What the SDK asks the host's navigation to do (`docs/integration.md`, Navigation): the
-/// request ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:overlays:)``
+/// request ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:onScreen:overlays:)``
 /// hands to `onNavigation`. Perform it on the stack you own, and report every entry that stack
 /// drops with ``KarnakSwiftNavigator/entryRemoved(_:)``.
 public enum KarnakNavigation {
