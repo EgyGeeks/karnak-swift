@@ -24,6 +24,9 @@ import SwiftUI
 /// view goes away without finishing (`docs/integration.md`, Navigation). The screen stays; remove
 /// it in the callback. Without it, a `finish` acts as `back`. A host that implements
 /// `onNavigation` passes the `entryId` of the request it opens the screen for.
+///
+/// ``onContentReady(_:)`` hears, once per screen opened, that it shows what it is going to show: a splash ends there
+/// instead of on a section skeleton (`docs/integration.md`, Content ready).
 public struct KarnakScreen<Loading: View, Failure: View>: View {
   private let id: String
   private let params: [String: Any]
@@ -31,6 +34,7 @@ public struct KarnakScreen<Loading: View, Failure: View>: View {
   private let onFinish: ((_ outcome: String, _ result: [String: Any]) -> Void)?
   private let loading: (() -> Loading)?
   private let error: ((KarnakScreenError, _ retry: @escaping () -> Void) -> Failure)?
+  private var contentReady: (@MainActor () -> Void)?
 
   /// Shows screen `id` opened with `params`, drawing `loading` before the first content and
   /// `error` when there is nothing to show and loading failed. Calling `retry` loads again.
@@ -72,7 +76,21 @@ public struct KarnakScreen<Loading: View, Failure: View>: View {
   public var body: some View {
     ScreenPresenter(
       screenId: id, params: params, fillsSpace: true, entry: entry, onFinish: onFinish,
-      loading: loading, failure: error, sdkViews: .screen)
+      onContentReady: contentReady, loading: loading, failure: error, sdkViews: .screen)
+  }
+
+  /// Calls `action` once per screen opened, when it first shows what it is going to show (`docs/integration.md`,
+  /// Content ready): its loading gate open and every data source that starts with it answered or failed, not the
+  /// ones that start only when scrolled to; or its error, so a host never waits forever. End a splash or your own
+  /// loading view here instead of on a section skeleton. The latest `action` is the one called.
+  ///
+  /// ```swift
+  /// KarnakScreen("home").onContentReady { splash.dismiss() }
+  /// ```
+  public func onContentReady(_ action: @escaping @MainActor () -> Void) -> Self {
+    var screen = self
+    screen.contentReady = action
+    return screen
   }
 }
 

@@ -28,7 +28,7 @@ import SwiftUI
 ///
 /// **No main-thread I/O.** Nothing is read at construction. The first load (the cache or the
 /// bundled snapshot, ``KarnakConfiguration/bundledResources``) runs off the main thread, started by
-/// ``KarnakSwiftClient/warmUp(prefetch:)`` (with a bundle), ``ready()`` or the first ``string(_:args:)``.
+/// ``KarnakSwiftClient/warmUp(prefetch:sources:)`` (with a bundle), ``ready()`` or the first ``string(_:args:)``.
 /// Until it ends, ``string(_:args:)`` returns the key; the
 /// views below `.karnakHost` draw again when it arrives. An app that shows static text on its first
 /// frame awaits ``ready()`` behind its splash screen.

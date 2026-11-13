@@ -31,10 +31,11 @@ public struct KarnakConfiguration {
   public var acceptLanguageProvider: (@Sendable () -> String)?
   /// Whether newer content replaces what an open screen shows as soon as it arrives.
   public var liveUpdates: Bool
-  /// The most a screen's first draw waits for the release sync, in seconds: the first Karnak request of a cold start
-  /// carries `X-Karnak-Sync`, and a cached screen waits for its answer, which says which cached screens are out of
-  /// date, before it draws. A screen the answer marked stale also waits at most this long for its network answer
-  /// before it draws from the cache. `1` by default; `0` turns waiting off. Not negative.
+  /// How long a cached screen drawn before the release sync answers can still be updated, in seconds: the first Karnak
+  /// request of a cold start carries `X-Karnak-Sync`, a cached screen draws at once, and when the answer within this
+  /// time says the screen changed, its new body replaces the cached draw until the person first interacts. A screen
+  /// the answer marked stale also waits at most this long for its network answer before it draws from the cache. `1`
+  /// by default; `0` turns both off. Not negative.
   public var syncWait: TimeInterval
   /// Static headers every request carries. `X-Karnak-*` names belong to the SDK.
   public var headers: [String: String]
@@ -86,6 +87,10 @@ public struct KarnakConfiguration {
 
   /// The form handlers registered with ``formHandler(_:_:)`` and ``screenFormHandlers(_:_:)``, in order.
   var formHandlers: [FormHandlerRegistration] = []
+
+  /// The analytics destinations registered with ``analytics(_:)``, in order, and the last consent check set.
+  var analyticsDestinations: [(key: String, destination: any KarnakAnalyticsDestination)] = []
+  var analyticsConsent: ((String) -> Bool)?
 
   /// The custom component renderers registered with ``components(_:)``, by type.
   var componentRenderers: [String: CustomRenderer] = [:]

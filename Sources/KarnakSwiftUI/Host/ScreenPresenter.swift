@@ -25,6 +25,8 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   /// Who hears how the screen ended (`KarnakScreen(onFinish:)`); makes the screen an entry of its
   /// own when it has no ``entry``.
   var onFinish: ((_ outcome: String, _ result: [String: Any]) -> Void)?
+  /// Who hears, once per screen opened, that it shows what it is going to show (`KarnakScreen.onContentReady`).
+  var onContentReady: (@MainActor () -> Void)?
   /// The call's own loading and error views, which win over the registered ones; `nil` when it gave none.
   let loading: (() -> Loading)?
   let failure: ((KarnakScreenError, _ retry: @escaping () -> Void) -> Failure)?
@@ -49,6 +51,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
     screenId: String, params: [String: Any], fillsSpace: Bool, closesWhenHidden: Bool = false,
     entry: ScreenEntry? = nil,
     onFinish: ((_ outcome: String, _ result: [String: Any]) -> Void)? = nil,
+    onContentReady: (@MainActor () -> Void)? = nil,
     loading: (() -> Loading)?,
     failure: ((KarnakScreenError, _ retry: @escaping () -> Void) -> Failure)?,
     sdkViews: SdkScreenViews
@@ -59,6 +62,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
     self.closesWhenHidden = closesWhenHidden
     self.entry = entry
     self.onFinish = onFinish
+    self.onContentReady = onContentReady
     self.loading = loading
     self.failure = failure
     self.sdkViews = sdkViews
@@ -76,7 +80,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
     // swiftlint:disable:next redundant_discardable_let
     let _ = model.updateHostCallbacks(
       hostCallbacks.withDefault(navigation: stackLevel.map(karnakNavigationTarget)),
-      onFinish: onFinish)
+      onFinish: onFinish, onContentReady: onContentReady)
     panes {
       phaseView
       // The lifecycle hangs on a view of its own: a phase that draws nothing, such as a

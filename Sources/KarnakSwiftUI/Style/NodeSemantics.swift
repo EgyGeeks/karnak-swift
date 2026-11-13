@@ -9,7 +9,7 @@ import SwiftUI
 ///   group that contains its children, so each stays reachable;
 /// - a leaf drawn as one box (an `icon` or a `progress`) is one element over its padded box;
 /// - roles become traits, the state description the element's value, and a disabled node is
-///   disabled;
+///   disabled; a checked `radio` or `checkbox` is also `isSelected`;
 /// - a `progress` is represented by the system's own `ProgressView` (a determinate one with its
 ///   whole-percent value, else an indeterminate one), so VoiceOver reads Apple's localized
 ///   progress semantics, including the in-progress state, with no string of ours.
@@ -121,7 +121,8 @@ struct ProgressSemantics: Equatable {
 extension AccessibilitySemantics {
   init(_ semantics: ResolvedSemantics) {
     self.init(
-      traits: accessibilityTraits(semantics.role), label: semantics.label, hint: semantics.hint,
+      traits: accessibilityTraits(semantics.role, checked: semantics.checked),
+      label: semantics.label, hint: semantics.hint,
       stateDescription: semantics.stateDescription, hidden: semantics.hidden,
       disabled: semantics.disabled, mergeDescendants: semantics.mergeDescendants)
   }

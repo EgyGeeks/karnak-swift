@@ -57,6 +57,13 @@ final class ScreenModel {
   let ownEntryId = "karnak-screen-\(UUID().uuidString)"
   /// Who hears the outcome of a screen that is an entry of its own: the latest hook.
   @ObservationIgnored var finishHandler: ((_ outcome: String, _ result: [String: Any]) -> Void)?
+  /// Who hears that the screen is ready (`KarnakScreen.onContentReady`): the latest hook. A child (a sheet's) has none.
+  @ObservationIgnored private var contentReadyHandler: (@MainActor () -> Void)?
+  /// Whether this visit told its host the screen is ready: once per visit. A visit starts when the model follows a
+  /// screen, and again when the screen is shown after it was hidden (covered, then back).
+  @ObservationIgnored private var toldReady = false
+  /// Whether the screen it follows has drawn a ready state: the engine latches it, so it stays ready.
+  @ObservationIgnored private var drewReady = false
   @ObservationIgnored private var reportsRemoval = false
   /// Where the screen's form state waits for a process that replaces this one: a full screen's, set by its view
   /// before it starts. Sections and the engine's own instances (a sheet's) have none.
@@ -136,6 +143,8 @@ final class ScreenModel {
 
   private func attach(_ opened: ScreenSession) {
     session = opened
+    toldReady = false
+    drewReady = false
     // A new instance is in the foreground until told otherwise.
     if ownsSession, !presence.isForeground { opened.setForeground(false) }
     if ownsSession { closer.action = closingAction(opened) }
@@ -177,6 +186,7 @@ final class ScreenModel {
   /// Misuse doesn't crash the host, in debug or release; the log is where a developer sees it.
   private func fail(_ message: String) {
     phase = .failed(KarnakScreenError(kind: .rejected, message: message))
+    drawReady()
     report(message)
     // Nothing opened, so nothing will ever finish: whoever waits hears `cancelled`.
     entry?.receiver?("cancelled", [:])
@@ -188,7 +198,15 @@ final class ScreenModel {
   }
 
   /// The screen's view appeared (`true`) or disappeared while the screen stays open (`false`).
-  func setShown(_ shown: Bool) { presence.shown = shown }
+  func setShown(_ shown: Bool) {
+    let returning = shown && !presence.shown
+    presence.shown = shown
+    // A screen that comes back is a new visit (`docs/integration.md`, Content ready): ready already, it tells at once.
+    if returning {
+      toldReady = false
+      if drewReady { tellReady() }
+    }
+  }
 
   /// The app left the background (`true`) or entered it (`false`).
   func setAppActive(_ active: Bool) { presence.appActive = active }
@@ -237,9 +255,11 @@ final class ScreenModel {
   /// Answers the screen's host actions with `callbacks` from now on.
   func updateHostCallbacks(
     _ callbacks: KarnakHostCallbacks,
-    onFinish: ((_ outcome: String, _ result: [String: Any]) -> Void)? = nil
+    onFinish: ((_ outcome: String, _ result: [String: Any]) -> Void)? = nil,
+    onContentReady: (@MainActor () -> Void)? = nil
   ) {
     finishHandler = onFinish
+    contentReadyHandler = onContentReady
     self.callbacks = callbacks
     if bridge.update(callbacks) { session?.setHostActions(bridge.hostActions) }
     effects.sheet?.model.updateHostCallbacks(callbacks)
@@ -298,15 +318,34 @@ final class ScreenModel {
     case let content as ScreenStateContent:
       var shown: ResolvedScreen?
       if case .content(let screen) = phase { shown = screen }
-      gate.offer(content.screen, shown: shown) { [weak self] in self?.show($0) }
+      // Told once the tree is drawn: the gate may hold it back while the person scrolls.
+      let ready = content.ready
+      gate.offer(content.screen, shown: shown) { [weak self] in
+        self?.show($0)
+        if ready { self?.drawReady() }
+      }
     case let failed as ScreenStateFailed:
       gate.reset()
       phase = .failed(KarnakScreenError(failed.error))
+      drawReady()
     case is ScreenStateLoading:
       if case .content = phase { return }
       phase = .loading
     default: break
     }
+  }
+
+  /// A ready state is drawn (`ScreenState.ready`): content the engine marked ready, or a failure.
+  private func drawReady() {
+    drewReady = true
+    tellReady()
+  }
+
+  /// Tells the host, once per visit, that the screen shows what it is going to show.
+  private func tellReady() {
+    guard !toldReady else { return }
+    toldReady = true
+    contentReadyHandler?()
   }
 
   private func show(_ screen: ResolvedScreen) {

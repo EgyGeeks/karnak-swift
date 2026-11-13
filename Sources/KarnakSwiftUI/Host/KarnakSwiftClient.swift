@@ -6,7 +6,7 @@ import KarnakCore
 /// params as `[String: Any]`.
 ///
 /// Construction only stores the configuration: no I/O, no threads and no calls to the header
-/// provider. The first ``warmUp(prefetch:)``, ``prefetch(_:params:)``, ``setUser(id:attributes:)``,
+/// provider. The first ``warmUp(prefetch:sources:)``, ``prefetch(_:params:sources:)``, ``setUser(id:attributes:)``,
 /// ``clearUser()`` or screen builds the rest, and each part does its I/O off the main thread.
 ///
 /// ```swift
@@ -99,6 +99,9 @@ public final class KarnakSwiftClient: @unchecked Sendable {
       customActions: configuration.customActions, screens: configuration.screenCustomActions,
       log: log)
     config.register(formHandlers: configuration.formHandlers)
+    config.register(
+      analytics: configuration.analyticsDestinations, consent: configuration.analyticsConsent,
+      log: log)
     for (name, value) in configuration.headers { config.setHeader(name: name, value: value) }
     configuration.headerProvider.map { provider in config.addHeaderProvider(provider: provider) }
     configuration.onSignInRequired.map { hook in config.onSignInRequired = { hook() } }
@@ -124,9 +127,13 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   /// resolves the current theme and prefetches each of `prefetch`, once. Returns when that ends.
   /// Cancelling the task stops it. Misuse, such as an id of `.` or `..`, throws in debug;
   /// failures are logged.
-  public func warmUp(prefetch: [String] = []) async throws {
+  ///
+  /// With `sources`, `true` by default, each prefetched screen's data sources that cache (the `http` sources) are
+  /// fetched too, once each under their own cache rules, so the screen draws their answers in its first frame instead
+  /// of its section skeletons: they are the screens the app shows first, whose sources load a moment later anyway.
+  public func warmUp(prefetch: [String] = [], sources: Bool = true) async throws {
     try await untilCompleted { completion in
-      try self.client.warmUp(prefetch: prefetch, completion: completion)
+      try self.client.warmUp(prefetch: prefetch, sources: sources, completion: completion)
     }
   }
 
@@ -134,10 +141,14 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   /// at once. Returns when the load ends; cancelling the task stops it. A prefetch and an
   /// open of the same screen and params share one request. Misuse, such as params over 4 KiB
   /// or a value that isn't JSON, throws in debug; failures are logged.
-  public func prefetch(_ screenId: String, params: [String: Any] = [:]) async throws {
+  ///
+  /// With `sources` the screen's data sources that cache are fetched too, as ``warmUp(prefetch:sources:)`` does;
+  /// `false` by default, since a screen prefetched on a guess may never open.
+  public func prefetch(_ screenId: String, params: [String: Any] = [:], sources: Bool = false) async throws {
     let values = try converter.convert(params)
     try await untilCompleted { completion in
-      try self.client.prefetch(screenId: screenId, paramValues: values, completion: completion)
+      try self.client.prefetch(
+        screenId: screenId, paramValues: values, sources: sources, completion: completion)
     }
   }
 
@@ -160,6 +171,26 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   /// this call only makes open screens fetch now. Call it from the app's language setter.
   public func languageChanged() {
     client.languageChanged()
+  }
+
+  /// The keys of the analytics destinations this session's tracking plan delivers `event` to
+  /// (`docs/integration.md`, Moving from onTrack to destinations): each destination whose plan
+  /// rules send the event and that ``KarnakConfiguration/analytics(_:)`` registers. Empty without
+  /// a destination, before the session holds a plan, or when no rule sends the event. The consent
+  /// check doesn't change it, so a forwarder that skips these keys never sends a vendor what the
+  /// person refused it. Call it from `onTrack`:
+  ///
+  /// ```swift
+  /// onTrack: { event, properties in
+  ///   guard !karnak.plannedDestinations(event).contains("firebase") else { return }
+  ///   Analytics.logEvent(event, parameters: properties)
+  /// }
+  /// ```
+  ///
+  /// It reads memory only, on any thread. Calling it builds the Kotlin client's graph, as the
+  /// first screen does.
+  public func plannedDestinations(_ event: String) -> Set<String> {
+    client.plannedDestinations(event: event)
   }
 
   /// Signs the user out: clears their cached screens and stops sending them.

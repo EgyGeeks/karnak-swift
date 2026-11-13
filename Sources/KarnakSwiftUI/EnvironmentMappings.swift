@@ -1,12 +1,16 @@
 import KarnakCore
 import SwiftUI
 
-func accessibilityTraits(_ role: Role) -> AccessibilityTraits {
+/// The traits of a role. A `radio` is a button and a `checkbox` a toggle (iOS 17); either is `isSelected` while
+/// [checked], which VoiceOver reads as "selected" and, on a toggle, as "on". Any other role ignores [checked].
+func accessibilityTraits(_ role: Role, checked: Bool = false) -> AccessibilityTraits {
   switch role {
   case .button: .isButton
   case .link: .isLink
   case .heading: .isHeader
   case .image: .isImage
+  case .radio: checked ? [.isButton, .isSelected] : .isButton
+  case .checkbox: checked ? [.isToggle, .isSelected] : .isToggle
   default: []
   }
 }
