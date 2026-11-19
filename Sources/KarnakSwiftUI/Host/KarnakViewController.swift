@@ -15,7 +15,7 @@ public final class KarnakViewController: UIHostingController<AnyView> {
   /// default loading and error views. Images load through `imageLoader`, or through the built-in
   /// loader when it is nil (``SwiftUI/View/karnakImageLoader(_:)``). `entryId` binds the screen to
   /// the entry of a ``KarnakNavigation/open(entryId:target:params:presentation:)`` request and
-  /// `onFinish` hears how it ended, as in ``KarnakScreen``. A ``KarnakNavigationCoordinator`` makes
+  /// `onFinish` hears how it ended, as in ``KarnakScreen``. A `KarnakNavigationCoordinator` makes
   /// these controllers for you. The hooks are those of
   /// ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:onScreen:overlays:)``.
   public init(

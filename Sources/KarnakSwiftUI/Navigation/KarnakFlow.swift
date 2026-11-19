@@ -27,7 +27,7 @@ import SwiftUI
 /// (`KarnakFlows()` of `KarnakNavigation` in ``KarnakConfiguration/modules``) and the client that
 /// ``SwiftUI/View/karnakHost(_:onNavigate:onOpenUrl:onCustom:onTrack:onDismiss:onOpenScreen:onNavigation:onScreen:overlays:)``
 /// provides; without them it calls `onFinish` with `cancelled` and logs why. A `route` step shows
-/// the screen registered with ``SwiftUI/View/karnakRoute(_:content:)``.
+/// the screen registered with `.karnakRoute(_:content:)` (`KarnakNavigation` product).
 ///
 /// Place it where no `NavigationStack` of your own surrounds it (a tab, a sheet, a cover): SwiftUI
 /// cannot nest a stack in a pushed destination, and the flow's steps are pushed on the stack the

@@ -114,16 +114,10 @@ extension ScreenSession {
 
 /// Opens screens: the client, or a fake in tests.
 @MainActor
-protocol ScreenOpening: AnyObject {
+protocol ScreenOpening: HostStackOpener {
   /// Starts loading the requested screen. Throws for developer misuse in debug, such as params
   /// that aren't JSON values.
   func openScreen(_ request: ScreenRequest) throws -> ScreenSession
-  /// Logs a diagnostic where the host configured its logs.
-  func report(_ message: String)
-  /// The host dropped the entry `id`: its receiver hears `cancelled` unless it had its delivery.
-  func entryRemoved(_ id: String)
-  /// The host stacks screens of this opener are on.
-  var stackRegistry: HostStackRegistry { get }
   /// Places a flow in a container the app draws (``KarnakFlow``). Nil, logged, when the client has
   /// no flows module.
   func openFlow(_ request: FlowRequest) throws -> (any FlowSession)?
@@ -132,12 +126,16 @@ protocol ScreenOpening: AnyObject {
   func isOrphanedFlowEntry(_ entryId: String) -> Bool
   /// What tells this opener's saved state from another's in the same app: its server and client key.
   var savedStateScope: String { get }
+  /// Reopens a detail pane saved by a process that ended, one fresh instance per screen (`KarnakNavigator.restoreOverlay`);
+  /// nil, logged, when the engine can't.
+  func restoreDetail(_ screens: [SavedPaneScreen]) -> (any StackSession)?
 }
 
 extension ScreenOpening {
   func openFlow(_ request: FlowRequest) throws -> (any FlowSession)? { nil }
   func isOrphanedFlowEntry(_ entryId: String) -> Bool { false }
   var savedStateScope: String { "" }
+  func restoreDetail(_ screens: [SavedPaneScreen]) -> (any StackSession)? { nil }
 }
 
 /// An overlay's stack as the views use it: the entries to draw, and the report of a dismissal.
@@ -158,10 +156,13 @@ struct StackEntrySession {
   let screen: (any ScreenSession)?
   /// The native route the entry shows, with the handle that ends it; nil for a screen.
   let route: KarnakRouteTarget?
+  /// The params the entry was opened with, JSON host values: what a saved detail pane reopens it with.
+  let params: [String: Any]
 
-  init(id: String, screen: any ScreenSession) {
+  init(id: String, screen: any ScreenSession, params: [String: Any] = [:]) {
     self.id = id
     self.screen = screen
+    self.params = params
     route = nil
   }
 
@@ -169,6 +170,7 @@ struct StackEntrySession {
     self.id = id
     screen = nil
     self.route = route
+    params = route.params
   }
 }
 
@@ -205,7 +207,8 @@ final class ControllerStack: StackSession {
     _ entry: StackEntry, makeSession: (ScreenController) -> any ScreenSession
   ) -> StackEntrySession {
     guard let route = entry.route else {
-      return StackEntrySession(id: entry.entryId, screen: makeSession(entry.screen))
+      return StackEntrySession(
+        id: entry.entryId, screen: makeSession(entry.screen), params: entry.params)
     }
     let target = KarnakRouteTarget(
       id: route, params: entry.params,

@@ -37,8 +37,8 @@ public enum KarnakNavigationTarget: Equatable, Sendable {
   /// A native route of the app's route manifest (`karnak.routes.json`), shown by native code: the
   /// `route` step of a flow (`docs/integration.md`, Flows on iOS). Draw the screen the app has
   /// for `id` and give it `handle`, which ends the step. `.karnakDestinations()` and
-  /// ``KarnakNavigationCoordinator`` do it for the routes you register with
-  /// ``SwiftUI/View/karnakRoute(_:content:)`` and ``KarnakNavigationCoordinator/routes``.
+  /// `KarnakNavigationCoordinator` do it for the routes you register with
+  /// `.karnakRoute(_:content:)` (`KarnakNavigation` product) and `KarnakNavigationCoordinator/routes`.
   case route(String, handle: KarnakFlowHandle?)
 }
 

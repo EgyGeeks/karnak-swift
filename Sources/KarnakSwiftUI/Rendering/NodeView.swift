@@ -76,13 +76,20 @@ struct NodeChildren: View {
   /// How the parent places each child.
   let placement: (ResolvedNode) -> ChildPlacement
   @Environment(\.karnakComponents) private var components
+  @Environment(\.karnakSearchPlacement) private var search
 
   var body: some View {
-    ForEach(nodes.compactMap { components.drawnNode($0) }, id: \.key.value) { child in
+    ForEach(drawn, id: \.key.value) { child in
       NodeView(node: child, placement: placement(child)).equatable()
         .rowAnchor(child.key.value, parent: parent)
         .karnakLayoutInput(KarnakLayoutInput(child))
     }
+  }
+
+  /// The children that take a place: a search the screen hoists into the system's field takes none, so its slot and
+  /// the spacing around it go too.
+  private var drawn: [ResolvedNode] {
+    nodes.compactMap { components.drawnNode($0) }.filter { search.drawsInPlace($0) }
   }
 }
 

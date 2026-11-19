@@ -50,6 +50,9 @@ struct OverlayRequest {
   /// `sheet` for a bottom sheet, `modal` for a full-screen cover, `detail` for a detail pane.
   let presentation: KarnakPresentation
   let stack: any StackSession
+  /// Whether the renderer ends the stack when the overlay goes: a stack the engine scoped to no screen, as a restored
+  /// detail pane's is (`KarnakNavigator.restoreOverlay`). The engine closes every other one with its screen.
+  var endedByRenderer = false
 }
 
 /// The engine asked to move focus to the input `key` (`FocusRequest`).

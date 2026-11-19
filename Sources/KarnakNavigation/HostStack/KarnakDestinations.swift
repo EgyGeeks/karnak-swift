@@ -1,3 +1,5 @@
+import Combine
+import KarnakSwiftUI
 import SwiftUI
 
 extension View {
@@ -29,11 +31,14 @@ extension View {
 }
 
 private struct KarnakDestinations: ViewModifier {
-  @Environment(\.karnakStack) private var inherited
-  @Environment(\.karnakOpener) private var opener
+  @Environment(\.karnakStack) private var position
+  @Environment(\.karnakStackOpener) private var opener
   @Environment(\.karnakHostCallbacks) private var callbacks
   @Environment(\.dismiss) private var dismiss
   @StateObject private var ownStack = KarnakHostStack()
+
+  /// The level of the stack this view is in, when an outer `.karnakDestinations()` or tab drives it.
+  private var inherited: KarnakStackLevel? { position as? KarnakStackLevel }
 
   func body(content: Content) -> some View {
     let level = inherited ?? KarnakStackLevel(stack: ownStack, depth: 0)
@@ -72,6 +77,8 @@ private struct KarnakStackLevelView<Content: View>: View {
   var body: some View {
     content
       .environment(\.karnakStack, level)
+      .environment(\.karnakInNavigationStack, true)
+      .environment(\.karnakPushedAbove, stack.entries.count > level.depth)
       .navigationDestination(
         isPresented: Binding(
           get: { stack.entries.count > level.depth },
@@ -90,32 +97,21 @@ private struct KarnakStackLevelView<Content: View>: View {
 }
 
 /// Where a view sits in the host stack: the entries it shares with the views above and below it,
-/// and how many entries lie below it.
-struct KarnakStackLevel {
+/// and how many entries lie below it. The screens below it read it as their ``HostStackPosition``.
+struct KarnakStackLevel: HostStackPosition {
   let stack: KarnakHostStack
   let depth: Int
-}
 
-/// The stacks of a client that native code can open screens on, newest last, so native code opening a
-/// screen (``KarnakSwiftClient/open(_:params:)``) finds one to push on.
-final class HostStackRegistry: @unchecked Sendable {
-  @MainActor private var hosts: [WeakHost] = []
-
-  nonisolated init() {}
-
-  private struct WeakHost {
-    weak var host: (any KarnakEntryHost)?
+  func perform(_ request: KarnakNavigation) {
+    stack.perform(request)
   }
 
-  /// Makes `host` the one native code opens screens on.
-  @MainActor func register(_ host: any KarnakEntryHost) {
-    hosts.removeAll { $0.host == nil || $0.host === host }
-    hosts.append(WeakHost(host: host))
+  var isCovered: Bool {
+    stack.isCovered(at: depth)
   }
 
-  /// The host that registered last and is still alive.
-  @MainActor var active: (any KarnakEntryHost)? {
-    hosts.last { $0.host != nil }?.host
+  var coverage: AnyPublisher<Bool, Never> {
+    stack.$entries.map { [depth] in $0.count > depth }.removeDuplicates().eraseToAnyPublisher()
   }
 }
 
@@ -125,7 +121,8 @@ private struct KarnakEntryView: View {
 
   var body: some View {
     if let screenId = entry.screenId {
-      KarnakScreen(entry: entry, screenId: screenId)
+      KarnakScreen(
+        screenId: screenId, params: entry.params, entryId: entry.id, receiver: entry.receiver)
     } else if let route = entry.route {
       KarnakRouteEntryView(route: route)
     }

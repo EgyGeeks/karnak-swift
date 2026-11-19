@@ -21,7 +21,7 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   private let debug: Bool
   private let log: @Sendable (String) -> Void
   let resourcesCore: ResourcesCore
-  let stacks = HostStackRegistry()
+  package let stacks = HostStackRegistry()
   private let signedInState = SignedInState()
   /// The loading and error views the app registered with ``KarnakConfiguration/screenStates(_:)``.
   let screenStates: ScreenStatesRegistry
@@ -43,7 +43,7 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     navigatorLock.withLock {
       if let cachedNavigator { return cachedNavigator }
       let made = KarnakSwiftNavigator(
-        client.navigator, converter: KarnakParamsConverter(debug: debug, log: log))
+        client.navigator, converter: KarnakParamsConverter(debug: debug, log: log), report: log)
       cachedNavigator = made
       return made
     }
@@ -144,7 +144,9 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   ///
   /// With `sources` the screen's data sources that cache are fetched too, as ``warmUp(prefetch:sources:)`` does;
   /// `false` by default, since a screen prefetched on a guess may never open.
-  public func prefetch(_ screenId: String, params: [String: Any] = [:], sources: Bool = false) async throws {
+  public func prefetch(
+    _ screenId: String, params: [String: Any] = [:], sources: Bool = false
+  ) async throws {
     let values = try converter.convert(params)
     try await untilCompleted { completion in
       try self.client.prefetch(
@@ -231,17 +233,17 @@ public final class KarnakSwiftClient: @unchecked Sendable {
 
 extension KarnakSwiftClient: ScreenOpening {
   @MainActor
-  func report(_ message: String) {
+  package func report(_ message: String) {
     log(message)
   }
 
   @MainActor
-  func entryRemoved(_ id: String) {
+  package func entryRemoved(_ id: String) {
     navigator.entryRemoved(id)
   }
 
   @MainActor
-  var stackRegistry: HostStackRegistry { stacks }
+  package var stackRegistry: HostStackRegistry { stacks }
 
   @MainActor
   func isOrphanedFlowEntry(_ entryId: String) -> Bool {
@@ -262,6 +264,11 @@ extension KarnakSwiftClient: ScreenOpening {
       flowId: request.flowId, paramValues: converter.convert(request.params),
       receiver: ClosureReceiver(request.receiver))
     return ControllerFlow(flow, session: { ControllerSession($0) })
+  }
+
+  @MainActor
+  func restoreDetail(_ screens: [SavedPaneScreen]) -> (any StackSession)? {
+    navigator.restoreDetail(screens).map { ControllerStack($0, session: { ControllerSession($0) }) }
   }
 
   @MainActor
@@ -309,5 +316,37 @@ private struct ClientFontSource: FontFileSource, @unchecked Sendable {
 
   func fontFile(for face: FontFaceHandle) async -> String? {
     try? await client.fonts.load(face: face.face)?.path
+  }
+}
+
+extension KarnakSwiftClient {
+  /// The tab bar of `form` as the project's theme styles it (ADR 0045, D12), from the theme the
+  /// client holds or the SDK's baseline, with no I/O.
+  package func tabBarStyle(
+    _ form: KarnakTabBarForm, dark: Bool, rtl: Bool, icons: [String]
+  ) -> ResolvedTabBarStyle {
+    client.tabBarStyle(form: form, mode: dark ? .dark : .light, rtl: rtl, icons: icons)
+  }
+
+  /// The revisions of the theme the client holds: the one now, then each time it holds another
+  /// (from ``loadTheme()`` or any screen's load), on the main thread.
+  package func themeRevisions() -> AsyncStream<Int32> {
+    AsyncStream { continuation in
+      let handle = CancelHandle()
+      handle.set(client.observeTheme { continuation.yield($0.int32Value) })
+      continuation.onTermination = { _ in handle.cancel() }
+    }
+  }
+
+  /// Loads the app's theme in the background; returns whether one decoded.
+  package func loadTheme() async -> Bool {
+    let handle = CancelHandle()
+    return await withTaskCancellationHandler {
+      await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+        handle.set(client.loadTheme { continuation.resume(returning: $0.boolValue) })
+      }
+    } onCancel: {
+      handle.cancel()
+    }
   }
 }

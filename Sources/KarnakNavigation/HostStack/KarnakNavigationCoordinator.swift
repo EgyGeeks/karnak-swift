@@ -1,4 +1,5 @@
 import KarnakCore
+import KarnakSwiftUI
 import SwiftUI
 import UIKit
 
@@ -28,7 +29,7 @@ public final class KarnakNavigationCoordinator: NSObject, UINavigationController
       @MainActor (
         _ screenId: String, _ params: [String: Any], _ entryId: String?,
         _ receiver: ((String, [String: Any]) -> Void)?,
-        _ perform: @escaping (KarnakNavigation) -> Void
+        _ perform: @escaping (KarnakSwiftUI.KarnakNavigation) -> Void
       ) -> UIViewController
     var entryRemoved: @MainActor (String) -> Void
     var report: @MainActor (String) -> Void
@@ -147,7 +148,7 @@ public final class KarnakNavigationCoordinator: NSObject, UINavigationController
 
   /// Performs `request` on the navigation controller, one operation at a time: a push made
   /// while another animates waits for it.
-  public func perform(_ request: KarnakNavigation) {
+  public func perform(_ request: KarnakSwiftUI.KarnakNavigation) {
     schedule { [self] in
       switch request {
       case .open(let entryId, .screen(let screenId), let params, let presentation):
@@ -331,7 +332,7 @@ public final class KarnakNavigationCoordinator: NSObject, UINavigationController
 }
 
 extension KarnakNavigationCoordinator: KarnakEntryHost {
-  func push(
+  package func push(
     _ screenId: String, params: [String: Any], entryId: String,
     receiver: @escaping (String, [String: Any]) -> Void
   ) {
@@ -346,7 +347,7 @@ extension KarnakNavigationCoordinator: KarnakEntryHost {
     }
   }
 
-  func remove(_ entryId: String) {
+  package func remove(_ entryId: String) {
     schedule { [self] in back(to: nil, root: false, before: entryId) }
   }
 }

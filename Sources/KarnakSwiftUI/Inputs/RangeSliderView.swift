@@ -28,7 +28,8 @@ struct RangeSliderView: View {
     let drawn = restyled(slider, for: focusedThumb != nil ? [.focused] : [])
     InputFrame(input: drawn, placement: placement, label: drawn.label, support: drawn.error) {
       VStack(spacing: 0) {
-        pickedValues(drawn)
+        // A filter that writes the range in its own label hides the row (ADR 0034, D9); the thumbs still say them.
+        if drawn.showValues { pickedValues(drawn) }
         rail(drawn)
           .partBox(drawn.control, alignment: .center)
       }

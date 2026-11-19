@@ -96,7 +96,8 @@ enum NodeRenderers {
   static var kinds: Set<String> { Set(table.keys) }
 
   nonisolated(unsafe) private static let table: [String: NodeRegistration] =
-    layouts().merging(scrollers()) { $1 }.merging(contents()) { $1 }.merging(inputs()) { $1 }
+    layouts().merging(scrollers()) { $1 }.merging(contents()) { $1 }
+    .merging(fieldInputs()) { $1 }.merging(choiceInputs()) { $1 }
 
   nonisolated(unsafe) private static let custom: NodeRegistration = .of(
     ResolvedCustom.self, drawsOwnBox: true, children: { $0.fallback.map { [$0] } ?? [] },
@@ -171,6 +172,11 @@ enum NodeRenderers {
       draw: { pager, placement in
         AnyView(PagerView(pager: pager, placement: placement))
       })
+    table["tabs"] = .of(
+      ResolvedTabs.self, reportsFrame: true, children: { $0.panels.children },
+      draw: { tabs, placement in
+        AnyView(TabsView(tabs: tabs, placement: placement))
+      })
     return table
   }
 
@@ -209,15 +215,38 @@ enum NodeRenderers {
     return table
   }
 
-  /// The inputs (`docs/renderer-contract.md`, Inputs): each draws its box around its parts itself, and its control is
-  /// the accessibility element.
-  private static func inputs() -> [String: NodeRegistration] {
+  /// The inputs people type or pick a value in (`docs/renderer-contract.md`, Inputs): each draws its box around its
+  /// parts itself, and its control is the accessibility element.
+  private static func fieldInputs() -> [String: NodeRegistration] {
     var table: [String: NodeRegistration] = [:]
     table["text_field"] = .of(
       ResolvedTextField.self, drawsOwnBox: true,
       draw: { field, placement in
         AnyView(TextFieldView(field: field, placement: placement))
       })
+    // The screen's search: hoisted into `.searchable` by the screen view, else a field in its place.
+    table["search"] = .of(
+      ResolvedSearch.self, drawsOwnBox: true,
+      draw: { search, placement in
+        AnyView(SearchFieldView(search: search, placement: placement))
+      })
+    table["select"] = .of(
+      ResolvedSelect.self, drawsOwnBox: true,
+      draw: { select, placement in
+        AnyView(SelectView(select: select, placement: placement))
+      })
+    table["range_slider"] = .of(
+      ResolvedRangeSlider.self, drawsOwnBox: true,
+      draw: { slider, placement in
+        AnyView(RangeSliderView(slider: slider, placement: placement))
+      })
+    return table
+  }
+
+  /// The inputs people choose among options with (`docs/renderer-contract.md`, Inputs): each draws its box around its
+  /// parts itself, and its control is the accessibility element.
+  private static func choiceInputs() -> [String: NodeRegistration] {
+    var table: [String: NodeRegistration] = [:]
     table["checkbox"] = .of(
       ResolvedCheckbox.self, drawsOwnBox: true,
       draw: { checkbox, placement in
@@ -233,25 +262,20 @@ enum NodeRenderers {
       draw: { group, placement in
         AnyView(RadioGroupView(group: group, placement: placement))
       })
-    table["select"] = .of(
-      ResolvedSelect.self, drawsOwnBox: true,
-      draw: { select, placement in
-        AnyView(SelectView(select: select, placement: placement))
-      })
     table["chip_group"] = .of(
       ResolvedChipGroup.self, drawsOwnBox: true,
       draw: { chips, placement in
         AnyView(ChipGroupView(group: chips, placement: placement))
       })
+    table["segmented"] = .of(
+      ResolvedSegmented.self, drawsOwnBox: true,
+      draw: { control, placement in
+        AnyView(SegmentedView(control: control, placement: placement))
+      })
     table["checkbox_group"] = .of(
       ResolvedCheckboxGroup.self, drawsOwnBox: true,
       draw: { group, placement in
         AnyView(CheckboxGroupView(group: group, placement: placement))
-      })
-    table["range_slider"] = .of(
-      ResolvedRangeSlider.self, drawsOwnBox: true,
-      draw: { slider, placement in
-        AnyView(RangeSliderView(slider: slider, placement: placement))
       })
     return table
   }

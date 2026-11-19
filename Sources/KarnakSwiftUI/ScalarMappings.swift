@@ -23,4 +23,4 @@ func edgeInsets(_ insets: KarnakInsets) -> EdgeInsets {
   edgeInsets(start: insets.start, top: insets.top, end: insets.end, bottom: insets.bottom)
 }
 
-func resolvedColor(_ color: Argb) -> Color { resolvedColor(argb: color.value) }
+package func resolvedColor(_ color: Argb) -> Color { resolvedColor(argb: color.value) }

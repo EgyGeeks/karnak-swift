@@ -108,11 +108,15 @@ extension KarnakScreen where Loading == KarnakLoadingView, Failure == KarnakErro
       loading: nil, error: nil)
   }
 
-  /// The screen of a host-stack entry that shows a screen.
-  init(entry: KarnakStackEntry, screenId: String) {
+  /// The screen of a host-stack entry (the `KarnakNavigation` product's stacks): `receiver` hears how it ended when
+  /// native code opened it.
+  package init(
+    screenId: String, params: [String: Any], entryId: String,
+    receiver: ((_ outcome: String, _ result: [String: Any]) -> Void)?
+  ) {
     self.init(
-      screenId, params: entry.params,
-      entry: ScreenEntry(id: entry.id, receiver: entry.receiver), loading: nil, error: nil)
+      screenId, params: params, entry: ScreenEntry(id: entryId, receiver: receiver), loading: nil,
+      error: nil)
   }
 }
 

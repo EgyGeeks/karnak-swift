@@ -88,6 +88,11 @@ private struct RadioOptionView: View {
           .partBox(indicator, alignment: .center)
         }
         InputTextView(drawn.label)
+        if let trailing = drawn.trailing {
+          // A price or a count at the row's trailing edge (ADR 0034, D9).
+          Spacer(minLength: optionTrailingGap)
+          InputTextView(trailing)
+        }
       }
       .frame(maxWidth: fills ? .infinity : nil, alignment: .leading)
       .partBox(drawn.row)
@@ -96,7 +101,7 @@ private struct RadioOptionView: View {
     .focused(focused, equals: option.value)
     .disabled(!drawn.enabled)
     .onHover { hovered = $0 }
-    .accessibilityLabel(option.label.words)
+    .accessibilityLabel(option.spokenLabel)
     .accessibilityAddTraits(drawn.selected ? .isSelected : [])
   }
 }

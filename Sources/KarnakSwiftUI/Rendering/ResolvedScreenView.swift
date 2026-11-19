@@ -43,6 +43,9 @@ struct ResolvedScreenView: View {
   /// Whether the view fills the space it is offered (a screen) or takes only the size its
   /// content needs (a section).
   var fillsSpace = true
+  /// Whether the screen hoists its `search` into the system's search field (``ScreenSearch``): a screen does, a
+  /// section draws it in its place, as it has no navigation bar of its own.
+  var hostsSearch = true
 
   /// Keeps its identity across updates, so node views reading it don't redraw when the host
   /// passes a new closure (Compose's `rememberUpdatedState`).
@@ -77,6 +80,8 @@ struct ResolvedScreenView: View {
       maxWidth: fillsSpace ? .infinity : nil, maxHeight: fillsSpace ? .infinity : nil,
       alignment: .topLeading
     )
+    // `.searchable` on the screen's own content, never on the host's stack (ADR 0043, D5).
+    .modifier(ScreenSearch(search: hostsSearch ? ScreenSearch.find(in: screen) : nil))
     .background {
       if measuresViewport { ViewportProbe { viewport = $0 } }
     }

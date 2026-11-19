@@ -3,20 +3,43 @@ import SwiftUI
 
 /// The host's hooks for what a screen asks the app to do (`docs/integration.md`, Setup). A
 /// ``HostActionBridge`` answers the engine's host actions with them.
-struct KarnakHostCallbacks {
-  var onNavigate: ((_ route: String, _ params: [String: Any]) -> Void)?
-  var onOpenUrl: ((_ url: URL) -> Void)?
-  var onCustom: ((_ type: String, _ params: [String: Any]) -> Void)?
-  var onTrack: ((_ event: String, _ properties: [String: Any]) -> Void)?
-  var onDismiss: (() -> Void)?
-  var onOpenScreen: ((_ screenId: String, _ params: [String: Any]) -> Void)?
-  var onNavigation: ((_ request: KarnakNavigation) -> Void)?
-  var onScreen: (@MainActor (_ event: KarnakScreenEvent) -> Void)?
-  var overlays: KarnakOverlays = .sdk
+package struct KarnakHostCallbacks {
+  package var onNavigate: ((_ route: String, _ params: [String: Any]) -> Void)?
+  package var onOpenUrl: ((_ url: URL) -> Void)?
+  package var onCustom: ((_ type: String, _ params: [String: Any]) -> Void)?
+  package var onTrack: ((_ event: String, _ properties: [String: Any]) -> Void)?
+  package var onDismiss: (() -> Void)?
+  package var onOpenScreen: ((_ screenId: String, _ params: [String: Any]) -> Void)?
+  package var onNavigation: ((_ request: KarnakNavigation) -> Void)?
+  package var onScreen: (@MainActor (_ event: KarnakScreenEvent) -> Void)?
+  package var overlays: KarnakOverlays = .sdk
+
+  /// Hooks from the host's closures; every one is optional.
+  package init(
+    onNavigate: ((_ route: String, _ params: [String: Any]) -> Void)? = nil,
+    onOpenUrl: ((_ url: URL) -> Void)? = nil,
+    onCustom: ((_ type: String, _ params: [String: Any]) -> Void)? = nil,
+    onTrack: ((_ event: String, _ properties: [String: Any]) -> Void)? = nil,
+    onDismiss: (() -> Void)? = nil,
+    onOpenScreen: ((_ screenId: String, _ params: [String: Any]) -> Void)? = nil,
+    onNavigation: ((_ request: KarnakNavigation) -> Void)? = nil,
+    onScreen: (@MainActor (_ event: KarnakScreenEvent) -> Void)? = nil,
+    overlays: KarnakOverlays = .sdk
+  ) {
+    self.onNavigate = onNavigate
+    self.onOpenUrl = onOpenUrl
+    self.onCustom = onCustom
+    self.onTrack = onTrack
+    self.onDismiss = onDismiss
+    self.onOpenScreen = onOpenScreen
+    self.onNavigation = onNavigation
+    self.onScreen = onScreen
+    self.overlays = overlays
+  }
 
   /// These hooks with `defaultNavigation` as `onNavigation` unless the host gave `onNavigation`
   /// or `onOpenScreen`: the explicit hooks win over `.karnakDestinations()`.
-  func withDefault(
+  package func withDefault(
     navigation defaultNavigation: ((_ request: KarnakNavigation) -> Void)?
   ) -> KarnakHostCallbacks {
     var resolved = self
@@ -29,15 +52,16 @@ extension EnvironmentValues {
   /// Opens the screens below. `nil` outside `.karnakHost`, where screens fail as rejected.
   @Entry var karnakOpener: (any ScreenOpening)?
   /// The host's action hooks.
-  @Entry var karnakHostCallbacks = KarnakHostCallbacks()
+  @Entry package var karnakHostCallbacks = KarnakHostCallbacks()
   /// Called with the model of each ``KarnakScreen`` as it opens, so tests can read what the screen
   /// presents and answer it as its alerts and sheets do.
   @Entry var karnakScreenObserver: (@MainActor (ScreenModel) -> Void)?
   /// Called with the model of each ``KarnakFlow`` as it starts, so tests can read the screens the
   /// flow presents.
   @Entry var karnakFlowObserver: (@MainActor (FlowModel) -> Void)?
-  /// Where a screen sits in the stack ``SwiftUI/View/karnakDestinations()`` drives; nil outside it.
-  @Entry var karnakStack: KarnakStackLevel?
+  /// Where a screen sits in a host stack of the `KarnakNavigation` product (`.karnakDestinations()`, a tab's
+  /// stack); nil outside one.
+  @Entry package var karnakStack: (any HostStackPosition)?
 }
 
 extension View {
@@ -61,7 +85,7 @@ extension View {
   ///   - onTrack: Called with the event and properties of a `track` action.
   ///   - onDismiss: Called when a full screen's `dismiss` action asks to go back.
   ///   - onOpenScreen: Called with the id and params of an `open_screen` action, which asks for
-  ///     another Karnak screen. Without it, ``SwiftUI/View/karnakDestinations()`` on the
+  ///     another Karnak screen. Without it, `.karnakDestinations()` (`KarnakNavigation` product) on the
   ///     `NavigationStack` pushes the screen; this hook wins over it. It covers pushes only.
   ///   - onNavigation: Called with every navigation a screen asks for: an `open_screen` of any
   ///     presentation and a `back` of any form (``KarnakNavigation``). Perform it on your router,

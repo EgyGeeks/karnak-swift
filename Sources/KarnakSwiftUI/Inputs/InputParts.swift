@@ -98,6 +98,17 @@ extension InputText {
   var words: String { paragraph.runs.map(\.text).joined() }
 }
 
+/// The gap between an option's label and its trailing text (ADR 0034, D9).
+let optionTrailingGap: CGFloat = 4
+
+extension ResolvedOption {
+  /// The option's label, then its trailing text (a price or a count) when it has one, as VoiceOver reads the option.
+  var spokenLabel: String {
+    guard let trailing else { return label.words }
+    return "\(label.words), \(trailing.words)"
+  }
+}
+
 /// A filled circle, a radio option's dot.
 struct InputDot: View {
   let diameter: CGFloat

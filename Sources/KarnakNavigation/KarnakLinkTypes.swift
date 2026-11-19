@@ -47,21 +47,29 @@ public struct KarnakLinkOptions: Sendable {
   /// ``KarnakLinkContinuation/cancel()`` when they gave up. Nil, the default, rejects such a link
   /// as `sign_in_required`.
   public var onSignInRequired: (@MainActor @Sendable (KarnakLinkContinuation) -> Void)?
+  /// The app's tabs, when it has bottom navigation (`docs/integration.md`, Bottom navigation): a
+  /// link whose pattern names a tab shows that tab popped to its root and opens there, and one
+  /// to a sign-in tab passes the auth gate first. Give it `KarnakTabStore.links`. Nil, the
+  /// default, opens every link where it came from.
+  public nonisolated(unsafe) var tabs: (any LinkTabs)?
 
   /// Creates the options.
   public init(
     signedIn: @escaping @Sendable () -> Bool = { false },
-    onSignInRequired: (@MainActor @Sendable (KarnakLinkContinuation) -> Void)? = nil
+    onSignInRequired: (@MainActor @Sendable (KarnakLinkContinuation) -> Void)? = nil,
+    tabs: (any LinkTabs)? = nil
   ) {
     self.signedIn = signedIn
     self.onSignInRequired = onSignInRequired
+    self.tabs = tabs
   }
 
   /// The Kotlin options these are.
   var kotlin: LinkOptions {
     let signedIn = signedIn
     guard let onSignInRequired else {
-      return LinkOptions(signedIn: { KotlinBoolean(bool: signedIn()) }, onSignInRequired: nil)
+      return LinkOptions(
+        signedIn: { KotlinBoolean(bool: signedIn()) }, onSignInRequired: nil, tabs: tabs)
     }
     return LinkOptions(
       signedIn: { KotlinBoolean(bool: signedIn()) },
@@ -69,7 +77,8 @@ public struct KarnakLinkOptions: Sendable {
         // The engine may call from its own dispatcher: the app's sign-in is main-thread work.
         nonisolated(unsafe) let waiting = continuation
         Task { @MainActor in onSignInRequired(KarnakLinkContinuation(waiting)) }
-      })
+      },
+      tabs: tabs)
   }
 }
 

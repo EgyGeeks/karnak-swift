@@ -8,6 +8,8 @@ struct OverlayEntry: Identifiable {
   let model: ScreenModel?
   /// The native route of a flow step; nil for a Karnak screen.
   let route: KarnakRouteTarget?
+  /// The params the entry was opened with, JSON host values.
+  var params: [String: Any] = [:]
 }
 
 /// Follows the contained stack of one overlay (`docs/renderer-contract.md`, Contained stacks): the
@@ -23,6 +25,7 @@ final class OverlayModel: ObservableObject, Identifiable {
   var onEnded: () -> Void = {}
 
   private let stack: any StackSession
+  private let endedByRenderer: Bool
   private let makeModel: @MainActor (any ScreenSession) -> ScreenModel
   private var models: [String: ScreenModel] = [:]
   private var stopObserving: (() -> Void)?
@@ -33,6 +36,7 @@ final class OverlayModel: ObservableObject, Identifiable {
     id = request.id
     presentation = request.presentation
     stack = request.stack
+    endedByRenderer = request.endedByRenderer
     self.makeModel = makeModel
   }
 
@@ -43,8 +47,10 @@ final class OverlayModel: ObservableObject, Identifiable {
     }
   }
 
-  /// Stops listening and following the screens; the engine closes them.
+  /// Stops listening and following the screens. The engine closes them, or, for a stack it scoped to no screen
+  /// (``OverlayRequest/endedByRenderer``), this ends it first.
   func stop() {
+    if endedByRenderer { entries.first.map { stack.entryRemoved($0.id) } }
     stopObserving?()
     stopObserving = nil
     for model in models.values { model.stop() }
@@ -74,7 +80,7 @@ final class OverlayModel: ObservableObject, Identifiable {
       }
       let model = models[session.id] ?? makeModel(screen)
       models[session.id] = model
-      return OverlayEntry(id: session.id, model: model, route: nil)
+      return OverlayEntry(id: session.id, model: model, route: nil, params: session.params)
     }
     if sessions.isEmpty { onEnded() }
   }

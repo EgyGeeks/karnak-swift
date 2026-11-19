@@ -44,14 +44,17 @@ struct OverlayPresentation: View {
   }
 }
 
-/// The `NavigationStack` of a contained stack, an overlay's or a placed flow's (a detail pane
-/// has ``PaneStackView``): its first entry is the root, the others are pushed, and a pop is
+/// The `NavigationStack` of a contained stack, an overlay's, a placed flow's or a detail pane's in a split view's
+/// detail column (a pane the screen draws itself has ``PaneStackView`` or ``PanePushLevel``): its first entry is the root, the others are pushed, and a pop is
 /// reported to the engine.
 struct ContainedStackView: View {
   @ObservedObject var overlay: OverlayModel
   /// Whether the screens fill the space they are offered (a full-screen cover, a placed flow)
   /// or are bounded by the sheet without scrolling it (a sheet).
   let fillsSpace: Bool
+  /// Whether the first entry keeps the stack's bar: in a split view's detail column, where the bar holds the split
+  /// view's back button and sidebar button.
+  var showsRootBar = false
   /// What the entries of a sheet measured: the sheet is as tall as the top one.
   @State private var heights = SheetHeights()
 
@@ -72,7 +75,7 @@ struct ContainedStackView: View {
       Group {
         if let root = overlay.entries.first {
           ContainedEntryView(entry: root, fillsSpace: fillsSpace, onHeight: report(root.id))
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbar(showsRootBar ? .automatic : .hidden, for: .navigationBar)
         }
       }
       .navigationDestination(for: String.self) { id in
@@ -80,6 +83,7 @@ struct ContainedStackView: View {
           ContainedEntryView(entry: entry, fillsSpace: fillsSpace, onHeight: report(id))
         }
       }
+      .environment(\.karnakInNavigationStack, true)
     }
   }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The stack inside a detail pane: its top entry's screen, under a bar with a back button when
+/// The stack inside a detail pane drawn beside its screen, or over it outside any stack (a pushed pane is
+/// ``PanePushLevel``): its top entry's screen, under a bar with a back button when
 /// there is a way back (an entry below, or `onRootBack`). It is not a `NavigationStack`: the pane
 /// is drawn inside its screen, which an app pushes on a `NavigationStack` of its own, and SwiftUI
 /// gives a stack nested in another's destination the outer stack's path, so opening the pane
@@ -49,10 +50,11 @@ struct PaneStackView: View {
 /// The pane's bar: a back button at the leading edge and nothing else (a pane has no title). It
 /// keeps the system look, as the pane's surface and divider do: the system's chevron, which
 /// mirrors in a right-to-left layout and grows with Dynamic Type, in the app's tint, on a touch
-/// target of at least 44 points. Its name for VoiceOver is "Back" from the app's string catalog,
-/// as ``KarnakLoadingView``'s "Loading" is.
+/// target of at least 44 points. Its name for VoiceOver is the project's string `common.back`, or
+/// "Back" from the app's string catalog without one, as ``KarnakErrorView``'s "Retry" is.
 private struct PaneBar: View {
   let onBack: () -> Void
+  @Environment(\.karnakResources) private var resources
 
   var body: some View {
     HStack {
@@ -62,7 +64,7 @@ private struct PaneBar: View {
           .frame(minWidth: 44, minHeight: 44)
           .contentShape(Rectangle())
       }
-      .accessibilityLabel(Text("Back"))
+      .accessibilityLabel(resources.text("common.back", fallback: "Back"))
       Spacer(minLength: 0)
     }
     .padding(.horizontal, 4)

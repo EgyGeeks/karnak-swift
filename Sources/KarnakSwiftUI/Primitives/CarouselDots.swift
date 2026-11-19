@@ -37,7 +37,8 @@ struct CarouselDots: View {
     let other = resolvedColor(indicator.color)
     Canvas { context, size in
       let starts = carouselDotStarts(
-        count: count, dot: dot, gap: gap, width: vertical ? size.height : size.width, current: current)
+        count: count, dot: dot, gap: gap, width: vertical ? size.height : size.width,
+        current: current)
       for (index, start) in starts.enumerated() {
         let left = direction == .rightToLeft ? size.width - start - dot : start
         let rect =

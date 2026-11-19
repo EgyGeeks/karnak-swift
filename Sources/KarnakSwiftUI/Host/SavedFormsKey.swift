@@ -7,7 +7,7 @@ import KarnakCore
 enum SavedFormsKey {
   /// Whether a new process can open the same screen under the same name, so keeping its text is of use: a full
   /// screen (a section closes when it is hidden) that is no entry, or an entry of the app's own router, which the
-  /// app restores with its id. An entry the SDK pushed on a host stack (``KarnakHostStack``, `karnakDestinations`)
+  /// app restores with its id. An entry the SDK pushed on a host stack (`KarnakHostStack`, `karnakDestinations`)
   /// is not: the SDK restores no stack, and its entry ids are new in every process, so what was written would only
   /// lie on disk unread.
   static func names(fullScreen: Bool, isEntry: Bool, inHostStack: Bool) -> Bool {

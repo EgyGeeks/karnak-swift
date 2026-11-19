@@ -21,7 +21,10 @@ struct CarouselItems: View {
   /// The `current` of the tree drawn last: the carousel scrolls only when a new tree moves it.
   @State private var followed: Int
 
-  init(carousel: ResolvedCarousel, nodes: [ResolvedNode], metrics: CarouselMetrics, current: Binding<Int>) {
+  init(
+    carousel: ResolvedCarousel, nodes: [ResolvedNode], metrics: CarouselMetrics,
+    current: Binding<Int>
+  ) {
     self.carousel = carousel
     self.nodes = nodes
     self.metrics = metrics

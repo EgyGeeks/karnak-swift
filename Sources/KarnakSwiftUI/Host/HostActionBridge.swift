@@ -11,12 +11,12 @@ import KarnakCore
 /// the tap that led to them ran, or, for what a flow does by itself (its next step, the `onFinish` of its end),
 /// hopped to it.
 @MainActor
-final class HostActionBridge {
+package final class HostActionBridge {
   private var callbacks = KarnakHostCallbacks()
   private let report: (String) -> Void
 
   /// Creates a bridge that sends diagnostics to `report`.
-  init(report: @escaping (String) -> Void) {
+  package init(report: @escaping (String) -> Void) {
     self.report = report
   }
 
@@ -40,14 +40,14 @@ final class HostActionBridge {
   /// Uses `callbacks` for the actions that arrive from now on. Returns whether the engine must
   /// be given ``hostActions`` again: a hook it was given is gone, or one it lacked is there.
   @discardableResult
-  func update(_ callbacks: KarnakHostCallbacks) -> Bool {
+  package func update(_ callbacks: KarnakHostCallbacks) -> Bool {
     let before = wiring
     self.callbacks = callbacks
     return before != wiring
   }
 
   /// The hooks to give the engine instance (`ScreenController.setHostActions`).
-  var hostActions: HostActions {
+  package var hostActions: HostActions {
     let actions = engineActions.withOverlays(choice: callbacks.overlays.core)
     guard navigationWired else { return actions }
     return actions.withNavigation { @Sendable [weak self] request in

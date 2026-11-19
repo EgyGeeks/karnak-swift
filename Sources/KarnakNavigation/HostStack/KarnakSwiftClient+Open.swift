@@ -1,4 +1,5 @@
 import Foundation
+import KarnakSwiftUI
 
 /// How a screen opened by ``KarnakSwiftClient/open(_:params:)`` ended: the outcome of its `finish`
 /// action and its result, or `cancelled` with an empty result when it closed without finishing.

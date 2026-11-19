@@ -51,7 +51,9 @@ struct PagerView: View {
           // A peek takes room from each side of the pages' area along the axis: a horizontal pager's page is narrower
           // (its text wraps at that width) and a vertical `wrap` area is taller than its first page by two peeks.
           .padding(
-            pager.vertical ? .vertical : .horizontal, points(dp: pager.effectivePeek(extent: Float(length))))
+            pager.vertical ? .vertical : .horizontal,
+            points(dp: pager.effectivePeek(extent: Float(length)))
+          )
           .hidden()
           .offeringNoFloatingAnchors()
           .accessibilityHidden(true)
@@ -68,7 +70,8 @@ struct PagerView: View {
 
   private func dots(_ indicator: ResolvedCarouselIndicator, count: Int) -> CarouselDots {
     CarouselDots(
-      key: pager.key.value, indicator: indicator, count: count, current: current, vertical: pager.vertical)
+      key: pager.key.value, indicator: indicator, count: count, current: current,
+      vertical: pager.vertical)
   }
 }
 
@@ -102,28 +105,41 @@ struct PagerPages: View {
   @Environment(\.layoutDirection) private var direction
   @Environment(\.karnakActions) private var actions
 
-  init(pager: ResolvedPager, nodes: [ResolvedNode], current: Binding<Int>, length: Binding<CGFloat>) {
+  init(
+    pager: ResolvedPager,
+    nodes: [ResolvedNode],
+    current: Binding<Int>,
+    length: Binding<CGFloat>
+  ) {
     self.pager = pager
     self.nodes = nodes
     _current = current
     _length = length
     let start = Int(pager.current)
     _followed = State(initialValue: start)
-    _scrolledKey = State(initialValue: start > 0 && nodes.indices.contains(start) ? nodes[start].key.value : nil)
+    _scrolledKey = State(
+      initialValue: start > 0 && nodes.indices.contains(start) ? nodes[start].key.value : nil)
   }
 
   var body: some View {
     scrollView
       .environment(\.karnakNearClip, outerClip.map { $0.intersection(nearClip) } ?? nearClip)
-      .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { nearClip = $0 }
+      .onGeometryChange(for: CGRect.self) {
+        $0.frame(in: .global)
+      } action: {
+        nearClip = $0
+      }
       .contentMargins(pager.vertical ? .vertical : .horizontal, peek, for: .scrollContent)
-      .onGeometryChange(for: CGFloat.self) { pager.vertical ? $0.size.height : $0.size.width } action: {
+      .onGeometryChange(for: CGFloat.self) {
+        pager.vertical ? $0.size.height : $0.size.width
+      } action: {
         length = $0
       }
       .scrollTargetBehavior(
         PagerTargetBehavior(vertical: pager.vertical, step: step) { [position] in
           position.released(toward: $0)
-        })
+        }
+      )
       .environment(\.karnakReportsLabelledFrames, true)
       .onAppear {
         reporter.send = { actions.event($0, payload: $1, byUser: $2) }
@@ -180,11 +196,15 @@ struct PagerPages: View {
   @ViewBuilder private var scrollView: some View {
     if pager.vertical {
       ScrollView(.vertical, showsIndicators: false) {
-        LazyVStack(spacing: points(dp: pager.spacing)) { pages }.scrollTargetLayout().background { probe }
+        LazyVStack(spacing: points(dp: pager.spacing)) { pages }.scrollTargetLayout().background {
+          probe
+        }
       }
     } else {
       ScrollView(.horizontal, showsIndicators: false) {
-        LazyHStack(spacing: points(dp: pager.spacing)) { pages }.scrollTargetLayout().background { probe }
+        LazyHStack(spacing: points(dp: pager.spacing)) { pages }.scrollTargetLayout().background {
+          probe
+        }
       }
     }
   }

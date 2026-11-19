@@ -27,12 +27,17 @@ final class ScreenModel {
   /// The effects the open screen asks to present.
   let effects: EffectModel
 
+  /// The width the screen's content asks for as the start pane of a detail; `nil` before content and for the default.
+  var startPane: StartPane? {
+    if case .content(let screen) = phase { screen.startPane } else { nil }
+  }
+
   /// Holds structural updates while the user scrolls and anchors the row they read.
   let gate = ContentGate()
 
   /// The id of the screen it follows, once known: the key it opened, or the instance it follows.
   @ObservationIgnored private(set) var screenId: String?
-  @ObservationIgnored private var session: ScreenSession?
+  @ObservationIgnored private(set) var session: ScreenSession?
   private let closer = DeinitCloser()
   /// Whether the model closes the session it follows: not for a sheet's, which the engine owns.
   @ObservationIgnored private var ownsSession = true
@@ -68,8 +73,14 @@ final class ScreenModel {
   /// Where the screen's form state waits for a process that replaces this one: a full screen's, set by its view
   /// before it starts. Sections and the engine's own instances (a sheet's) have none.
   @ObservationIgnored var savedFormsSlot: SavedFormsSlot? {
-    didSet { if oldValue?.name != savedFormsSlot?.name { oldValue?.keep(nil) } }
+    didSet {
+      guard oldValue?.name != savedFormsSlot?.name, let oldValue else { return }
+      oldValue.keep(nil)
+      SavedDetail.slot(beside: oldValue).keep(nil)
+    }
   }
+  /// Where the screen's detail pane waits for a process that replaces this one, beside its form state.
+  private var savedDetailSlot: SavedFormsSlot? { savedFormsSlot.map(SavedDetail.slot(beside:)) }
   @ObservationIgnored private lazy var bridge = HostActionBridge { [weak self] message in
     self?.report(message)
   }
@@ -151,6 +162,7 @@ final class ScreenModel {
     // Right after it opens, once: what the last process kept of this screen.
     if ownsSession, let saved = savedFormsSlot?.take() { opened.restoreState(saved) }
     effects.bind(opened)
+    if ownsSession { reopenSavedDetail() }
     opened.setHostActions(bridge.hostActions)
     stopObserving = opened.observe { [weak self] state in
       MainActor.assumeIsolated { self?.receive(state) }
@@ -165,9 +177,11 @@ final class ScreenModel {
     let removed = reportsRemoval ? entry?.id : nil
     let owner = opener
     let slot = savedFormsSlot
+    let detailSlot = savedDetailSlot
     return {
       opened.close()
       slot?.keep(nil)
+      detailSlot?.keep(nil)
       if let removed { owner?.entryRemoved(removed) }
     }
   }
@@ -221,37 +235,6 @@ final class ScreenModel {
     session?.setForeground(presence.isForeground)
   }
 
-  /// Sends the activation of `handle` to the open screen; nothing happens without one.
-  func click(_ handle: ActionHandle) {
-    session?.click(handle)
-  }
-
-  /// Sends the appearance of `handle`, a node at least half visible, to the open screen; nothing
-  /// happens without one.
-  func appear(_ handle: ActionHandle) {
-    session?.appear(handle)
-  }
-
-  /// Sends the near report of `handle`, a node near the viewport, to the open screen; nothing happens without one.
-  func near(_ handle: ActionHandle) {
-    session?.near(handle)
-  }
-
-  /// Sends a node's settled event, such as a carousel's `pageChange`, to the open screen; nothing happens without one.
-  func event(_ handle: ActionHandle, payload: KarnakValue, byUser: Bool, generation: Int64) {
-    session?.event(handle, payload: payload, byUser: byUser, generation: generation)
-  }
-
-  /// Tells the open screen the floating view `key` ended for `reason`; nothing happens without one.
-  func floatingDismissed(_ key: String, _ reason: FloatingDismissReason) {
-    session?.floatingDismissed(key, reason)
-  }
-
-  /// Sends an input's event to the open screen; nothing happens without one.
-  func input(_ event: InputEvent) {
-    session?.input(event)
-  }
-
   /// Answers the screen's host actions with `callbacks` from now on.
   func updateHostCallbacks(
     _ callbacks: KarnakHostCallbacks,
@@ -272,6 +255,7 @@ final class ScreenModel {
     stopObservingEffects?()
     if ownsSession { session?.close() }
     savedFormsSlot?.keep(nil)
+    savedDetailSlot?.keep(nil)
     effects.reset()
     gate.reset()
     stopObserving = nil
@@ -293,6 +277,29 @@ final class ScreenModel {
   /// what the text holds and whether it applies later (`ScreenSession.saveState`).
   func keepForms(leaving: Bool) {
     savedFormsSlot?.keep(leaving ? session?.saveState() : nil)
+    savedDetailSlot?.keep(leaving ? savedDetailText : nil)
+  }
+
+  /// The form state the person typed in the open screen, as ``ScreenSession/saveState()`` gives it.
+  var savedForms: String? { session?.saveState() }
+
+  /// Restores `saved` into the screen just opened (``ScreenSession/restoreState(_:)``).
+  func restoreForms(_ saved: String) {
+    session?.restoreState(saved)
+  }
+
+  /// The open detail pane as ``SavedDetail`` keeps it; nil without one.
+  private var savedDetailText: String? {
+    guard let detail = effects.detail else { return nil }
+    return SavedDetail.text(of: detail.entries) { $0.model?.savedForms }
+  }
+
+  /// Right after the screen opens, once: the detail pane the last process kept of it, as a new stack.
+  private func reopenSavedDetail() {
+    guard let text = savedDetailSlot?.take() else { return }
+    let screens = SavedDetail.screens(from: text)
+    guard !screens.isEmpty, let stack = opener?.restoreDetail(screens) else { return }
+    effects.restoreDetail(stack, forms: screens.map(\.forms))
   }
 
   /// Loads the screen again, from the error UI's retry.
@@ -351,25 +358,6 @@ final class ScreenModel {
   private func show(_ screen: ResolvedScreen) {
     phase = .content(screen)
     effects.setGeneration(screen.generation)
-  }
-}
-
-/// Which screen a view shows, for telling when it must open another.
-struct SessionKey: Equatable {
-  let screenId: String
-  /// The params in the client's canonical text form, without what isn't a JSON value.
-  let params: String
-  let opener: ObjectIdentifier?
-  let entryId: String?
-
-  init(screenId: String, params: [String: Any], opener: ScreenOpening?, entryId: String? = nil) {
-    self.screenId = screenId
-    self.entryId = entryId
-    self.opener = opener.map(ObjectIdentifier.init)
-    // The client's own canonical form, so equal params in any order are one screen. Release
-    // mode drops what isn't a JSON value, as the client does, and never throws.
-    let converter = KarnakParamsConverter(debug: false, log: { _ in })
-    self.params = (try? converter.convert(params)).map(CanonicalParamsKt.canonicalJson) ?? ""
   }
 }
 

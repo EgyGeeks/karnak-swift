@@ -290,6 +290,18 @@ extension EffectModel {
     detail = nil
   }
 
+  /// Shows the detail pane a process that ended kept (``SavedDetail``): `stack`, reopened by the engine, with the
+  /// form state of each of its screens, bottom first.
+  func restoreDetail(_ stack: any StackSession, forms: [String?]) {
+    presentDetail(
+      OverlayRequest(
+        id: "karnak-restored-detail-\(UUID().uuidString)", generation: -1, presentation: .detail,
+        stack: stack, endedByRenderer: true))
+    for (entry, saved) in zip(detail?.entries ?? [], forms) {
+      if let saved { entry.model?.restoreForms(saved) }
+    }
+  }
+
   /// The user left the detail pane from its first screen: the engine closes the stack, and the
   /// pane ends with it.
   func detailClosedByUser() {

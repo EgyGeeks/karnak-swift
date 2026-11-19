@@ -2,7 +2,8 @@ import KarnakCore
 import SwiftUI
 
 /// `chip_group` (`docs/renderer-contract.md`, Inputs, `ResolvedChipGroup`): the chips in the options' box, one after
-/// another from the leading edge and wrapping onto further lines, `spacing` apart both ways, in one accessibility
+/// another from the leading edge and wrapping onto further lines, `spacing` apart both ways, or with `wrap` false on one
+/// line that scrolls horizontally (VoiceOver and keyboard focus scroll it too), in one accessibility
 /// container named by the input. Each chip is a button around its label and is the option's touch target; VoiceOver
 /// reads the selected one as selected. Picking an enabled chip sends its value, and takes focus from the other inputs.
 /// Focus moving between chips sends nothing: the group reports focus entering and leaving it. In a `multiple` group (a set's or
@@ -35,13 +36,35 @@ struct ChipGroupView: View {
     }
   }
 
+  @ViewBuilder
   private func chips(_ drawn: ResolvedChipGroup) -> some View {
-    ChipFlowLayout(spacing: points(dp: drawn.spacing)) {
-      ForEach(drawn.options, id: \.value) { option in
-        ChipView(option: option, focused: $focusedChip) { pick(option) }
+    if drawn.wrap {
+      ChipFlowLayout(spacing: points(dp: drawn.spacing)) { chipViews(drawn) }
+        .frame(maxWidth: placement.spans(drawn) ? .infinity : nil, alignment: .leading)
+    } else {
+      chipLine(drawn)
+    }
+  }
+
+  /// The chips on one line that scrolls along the reading direction once it is wider than the group (`wrap` false);
+  /// a chip that takes focus scrolls into view.
+  private func chipLine(_ drawn: ResolvedChipGroup) -> some View {
+    ScrollViewReader { proxy in
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: points(dp: drawn.spacing)) { chipViews(drawn) }
+      }
+      .onChange(of: focusedChip) { _, chip in
+        if let chip { withAnimation { proxy.scrollTo(chip) } }
       }
     }
     .frame(maxWidth: placement.spans(drawn) ? .infinity : nil, alignment: .leading)
+  }
+
+  private func chipViews(_ drawn: ResolvedChipGroup) -> some View {
+    ForEach(drawn.options, id: \.value) { option in
+      ChipView(option: option, focused: $focusedChip) { pick(option) }
+        .id(option.value)
+    }
   }
 
   /// The chip a `FocusRequest` focuses: the selected one, else the first enabled one.
@@ -74,14 +97,17 @@ private struct ChipView: View {
       for: activeInteractions(
         pressed: pressed, hovered: hovered, focused: focused.wrappedValue == option.value))
     Button(action: pick) {
-      InputTextView(drawn.label)
-        .partBox(drawn.row, alignment: .center)
+      HStack(spacing: optionTrailingGap) {
+        InputTextView(drawn.label)
+        if let trailing = drawn.trailing { InputTextView(trailing) }
+      }
+      .partBox(drawn.row, alignment: .center)
     }
     .buttonStyle(PressTrackingStyle(pressed: $pressed))
     .focused(focused, equals: option.value)
     .disabled(!drawn.enabled)
     .onHover { hovered = $0 }
-    .accessibilityLabel(option.label.words)
+    .accessibilityLabel(option.spokenLabel)
     .accessibilityAddTraits(drawn.selected ? .isSelected : [])
   }
 }

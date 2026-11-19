@@ -1,5 +1,6 @@
 import KarnakCore
 import SwiftUI
+import UIKit
 
 /// An icon in its square box (`docs/renderer-contract.md`, `ResolvedIcon`): the engine's parsed
 /// vector scaled from its viewport to the box and filled with the tint, each path with its own
@@ -118,4 +119,20 @@ struct ViewportShape: Shape {
       CGAffineTransform(translationX: rect.minX, y: rect.minY)
         .scaledBy(x: rect.width / viewport.width, y: rect.height / viewport.height))
   }
+}
+
+/// `vector` filled black into a `size`-point square, as a template image: the bar tints it as it
+/// does an SF Symbol. Nil for a vector the engine would never emit.
+@MainActor package func templateImage(_ vector: ResolvedVector, size: CGFloat) -> UIImage? {
+  guard let glyph = VectorGlyph(vector) else { return nil }
+  let fit = CGAffineTransform(
+    scaleX: size / glyph.viewport.width, y: size / glyph.viewport.height)
+  let image = UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { context in
+    UIColor.black.setFill()
+    for part in glyph.paths {
+      context.cgContext.addPath(part.path.applying(fit).cgPath)
+      context.cgContext.fillPath(using: part.evenOdd ? .evenOdd : .winding)
+    }
+  }
+  return image.withRenderingMode(.alwaysTemplate)
 }

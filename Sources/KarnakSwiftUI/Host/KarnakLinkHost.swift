@@ -28,7 +28,7 @@ package final class KarnakLinkHost: ObservableObject {
 
   /// Uses `callbacks` and `opener` from now on. The screens' default for `onNavigation` is the
   /// stack of their level; a link has no level, so it opens on the stack that appeared last
-  /// (``KarnakSwiftClient/open(_:params:)`` does the same). The explicit hooks win over it.
+  /// (`karnak.open(_:params:)` (`KarnakNavigation` product) does the same). The explicit hooks win over it.
   func update(opener: (any ScreenOpening)?, callbacks: KarnakHostCallbacks) {
     let client = opener as? KarnakSwiftClient
     self.client = client
@@ -46,7 +46,7 @@ package final class KarnakLinkHost: ObservableObject {
   }
 
   /// A host for hooks that are not a view's: the coordinator's.
-  func update(client: KarnakSwiftClient, callbacks: KarnakHostCallbacks) {
+  package func update(client: KarnakSwiftClient, callbacks: KarnakHostCallbacks) {
     update(opener: client, callbacks: callbacks)
   }
 }

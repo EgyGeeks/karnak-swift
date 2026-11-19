@@ -40,6 +40,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   @Environment(\.karnakScreenStates) private var screenStates
   @Environment(\.karnakHostCallbacks) private var hostCallbacks
   @Environment(\.karnakStack) private var stackLevel
+  @Environment(\.karnakInNavigationStack) private var inNavigationStack
   @Environment(\.karnakScreenObserver) private var screenObserver
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.layoutDirection) private var layoutDirection
@@ -83,6 +84,10 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
       onFinish: onFinish, onContentReady: onContentReady)
     panes {
       phaseView
+      // The screen's title is its stack entry's navigation title; a screen without one leaves the app's.
+      // It has a view of its own, so the branch it takes never replaces the lifecycle view below.
+      Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
+        .screenNavigationTitle(fillsSpace && inNavigationStack ? model.title : nil)
       // The lifecycle hangs on a view of its own: a phase that draws nothing, such as a
       // section's default loading view, is no view at all, and SwiftUI never runs its tasks.
       Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
@@ -129,7 +134,9 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   private func panes<Views: View>(@ViewBuilder _ views: @escaping () -> Views) -> some View {
     let measured = ZStack(content: views).measuringContainerWidth($measuredWidth)
     if fillsSpace {
-      DetailPanes(effects: model.effects, environment: screenEnvironment(width:)) { measured }
+      DetailPanes(
+        effects: model.effects, startPane: model.startPane, environment: screenEnvironment(width:)
+      ) { measured }
     } else {
       measured
     }
@@ -164,7 +171,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   /// gone for good.
   private var keepsOpenWhenCovered: Bool {
     if entry != nil || onFinish != nil { return true }
-    return stackLevel.map { $0.stack.isCovered(at: $0.depth) } ?? false
+    return stackLevel?.isCovered ?? false
   }
 
   private var phaseView: some View {

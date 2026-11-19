@@ -171,14 +171,16 @@ final class CarouselScrollProbeView: UIView {
     if vertical {
       extent = CarouselScrollExtent(
         offset: scroll.contentOffset.y + insets.top,
-        maximum: max(0, scroll.contentSize.height + insets.top + insets.bottom - scroll.bounds.height))
+        maximum: max(
+          0, scroll.contentSize.height + insets.top + insets.bottom - scroll.bounds.height))
     } else {
       let maximum = max(
         0, scroll.contentSize.width + insets.left + insets.right - scroll.bounds.width)
       let physical = scroll.contentOffset.x + insets.left
       // Along the content from the start edge: the content of a right-to-left carousel starts at the right edge.
       extent = CarouselScrollExtent(
-        offset: carouselPhysicalOffset(logical: physical, maximum: maximum, rightToLeft: rightToLeft),
+        offset: carouselPhysicalOffset(
+          logical: physical, maximum: maximum, rightToLeft: rightToLeft),
         maximum: maximum)
     }
     guard extent != last else { return }

@@ -1,4 +1,6 @@
 import Foundation
+import KarnakCore
+import KarnakSwiftUI
 import SwiftUI
 
 /// One entry of the host stack that `.karnakDestinations()` draws: the screen to show and the id
@@ -6,7 +8,7 @@ import SwiftUI
 struct KarnakStackEntry: Identifiable {
   let id: String
   /// A screen of the SDK, or a native route a flow runs.
-  let target: KarnakNavigationTarget
+  let target: KarnakSwiftUI.KarnakNavigationTarget
   let params: [String: Any]
   /// Who hears how the entry ended, when native code opened it (``KarnakSwiftClient/open(_:params:)``).
   let receiver: ((_ outcome: String, _ result: [String: Any]) -> Void)?
@@ -67,7 +69,7 @@ final class KarnakHostStack: ObservableObject, KarnakEntryHost {
 
   /// Runs the host-stack part of `request`. Overlays are not the host's: a `modal` or `sheet`
   /// that reaches it opens as a push.
-  func perform(_ request: KarnakNavigation) {
+  package func perform(_ request: KarnakSwiftUI.KarnakNavigation) {
     let key = OpenKey(request)
     if let key, key == inFlightKey || waiting.contains(where: { $0.key == key }) {
       if case .open(let entryId, _, _, _) = request {
@@ -89,7 +91,7 @@ final class KarnakHostStack: ObservableObject, KarnakEntryHost {
   }
 
   /// Pushes a screen native code asked for; `receiver` hears how it ended, once.
-  func push(
+  package func push(
     _ screenId: String, params: [String: Any], entryId: String,
     receiver: @escaping (String, [String: Any]) -> Void
   ) {
@@ -105,7 +107,7 @@ final class KarnakHostStack: ObservableObject, KarnakEntryHost {
 
   /// Removes `entryId` and everything above it, as native code asked (`karnak.open`'s task was
   /// cancelled).
-  func remove(_ entryId: String) {
+  package func remove(_ entryId: String) {
     schedule { [self] in back(to: nil, root: false, before: entryId) }
   }
 
@@ -247,13 +249,15 @@ struct OpenKey: Equatable {
   let params: String
   let presentation: String
 
-  init?(_ request: KarnakNavigation) {
+  init?(_ request: KarnakSwiftUI.KarnakNavigation) {
     guard case .open(_, let target, let params, let presentation) = request else { return nil }
     switch target {
     case .screen(let id): self.target = "screen:\(id)"
     case .route(let id, _): self.target = "route:\(id)"
     }
-    self.params = SessionKey(screenId: "", params: params, opener: nil).params
+    // The client's canonical form, so equal params in any order are one request; what isn't a JSON value is dropped.
+    let converter = KarnakParamsConverter(debug: false, log: { _ in })
+    self.params = (try? converter.convert(params)).map(CanonicalParamsKt.canonicalJson) ?? ""
     self.presentation = "\(presentation)"
   }
 }
@@ -273,18 +277,4 @@ final class OnceReceiver {
     receiver = nil
     target?(outcome, result)
   }
-}
-
-/// A stack native code can open screens on: the `.karnakDestinations()` stack, or a
-/// ``KarnakNavigationCoordinator``.
-@MainActor
-protocol KarnakEntryHost: AnyObject {
-  /// Pushes `screenId` as the entry `entryId`; `receiver` hears how it ended, once.
-  func push(
-    _ screenId: String, params: [String: Any], entryId: String,
-    receiver: @escaping (String, [String: Any]) -> Void)
-  /// Removes `entryId` and the entries above it.
-  func remove(_ entryId: String)
-  /// Performs a navigation request, such as the screen a link opens.
-  func perform(_ request: KarnakNavigation)
 }

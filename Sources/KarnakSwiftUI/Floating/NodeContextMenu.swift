@@ -17,7 +17,9 @@ struct NodeContextMenu: ViewModifier {
       content
         .contextMenu {
           ForEach(menu.items, id: \.id) { item in
-            Button(item.label, role: item.destructive ? .destructive : nil) { actions.click(item.onSelect) }
+            Button(item.label, role: item.destructive ? .destructive : nil) {
+              actions.click(item.onSelect)
+            }
           }
         }
         .modifier(MenuActions(menu: inGroup ? nil : menu))

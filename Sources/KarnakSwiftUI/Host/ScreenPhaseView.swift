@@ -27,7 +27,7 @@ struct ScreenPhaseView<Loading: View, Failure: View>: View {
         onEvent: { model.event($0, payload: $1, byUser: $2, generation: $3) },
         onInput: { model.input($0) }, onFloatingDismiss: { model.floatingDismissed($0, $1) },
         focus: model.effects.focus, measuresViewport: true,
-        fillsSpace: fillsSpace
+        fillsSpace: fillsSpace, hostsSearch: fillsSpace
       )
       .environment(\.karnakRowAnchors, model.gate.anchors)
       .background { ScrollProbe { model.gate.scroll = $0 } }
@@ -37,15 +37,15 @@ struct ScreenPhaseView<Loading: View, Failure: View>: View {
   }
 }
 
-/// Whether an entry of the host stack lies above the level, as the stack changes; never for a view
+/// Whether an entry of the host stack lies above the position, as the stack changes; never for a view
 /// outside a stack.
-@MainActor func stackCoverage(_ level: KarnakStackLevel?) -> AnyPublisher<Bool, Never> {
-  guard let level else { return Empty().eraseToAnyPublisher() }
-  return level.stack.$entries.map { $0.count > level.depth }.removeDuplicates()
-    .eraseToAnyPublisher()
+@MainActor func stackCoverage(_ position: (any HostStackPosition)?) -> AnyPublisher<Bool, Never> {
+  position?.coverage ?? Empty().eraseToAnyPublisher()
 }
 
-/// Where a screen's default navigation goes: the stack level it sits in.
-@MainActor func karnakNavigationTarget(_ level: KarnakStackLevel) -> (KarnakNavigation) -> Void {
-  { request in MainActor.assumeIsolated { level.stack.perform(request) } }
+/// Where a screen's default navigation goes: the stack position it sits in.
+@MainActor func karnakNavigationTarget(
+  _ position: any HostStackPosition
+) -> (KarnakNavigation) -> Void {
+  { request in MainActor.assumeIsolated { position.perform(request) } }
 }
