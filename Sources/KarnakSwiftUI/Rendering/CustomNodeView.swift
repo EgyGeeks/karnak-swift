@@ -11,9 +11,11 @@ struct CustomNodeView: View {
   /// What the parent decides about the box of whatever is drawn in the node's place.
   let placement: ChildPlacement
   @Environment(\.karnakComponents) private var components
+  @Environment(\.karnakInputs) private var inputs
+  @Environment(\.karnakActions) private var actions
 
   var body: some View {
-    if let hostView = components.hostView(for: node) {
+    if let hostView = components.hostView(for: node, sinks: CustomSinks(inputs: inputs, actions: actions)) {
       let styled = hostView.nodeStyle(node, placement: placement)
       // A labelled node reports its box, as ``NodeView`` has every labelled node do.
       if node.semantics.label != nil {
@@ -30,12 +32,12 @@ struct CustomNodeView: View {
 extension ComponentRegistry {
   /// What the host's renderer draws for this instance of `node`; nil when it asks for the fallback or the type has
   /// no renderer. A container asks before it draws the node, so a renderer runs more than once for one drawing, as
-  /// any view builder may.
+  /// any view builder may; only the drawing that shows it passes the `sinks` its value and events go to.
   @MainActor
-  func hostView(for node: ResolvedCustom) -> AnyView? {
+  func hostView(for node: ResolvedCustom, sinks: CustomSinks? = nil) -> AnyView? {
     guard let renderer = renderer(for: node.type) else { return nil }
     var askedForFallback = false
-    let view = renderer(KarnakCustomNode(node)) {
+    let view = renderer(KarnakCustomNode(node, sinks: sinks)) {
       askedForFallback = true
       return KarnakCustomFallback()
     }

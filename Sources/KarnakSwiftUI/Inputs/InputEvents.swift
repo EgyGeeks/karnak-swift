@@ -13,6 +13,8 @@ enum InputEvent {
   case selectionChange(NodeKey, [String])
   /// A `range_slider`'s lower and upper numbers.
   case rangeChange(NodeKey, lower: Double, upper: Double)
+  /// The value a custom component writes as the form value its node edits (its `input` group, ADR 0051).
+  case customValue(NodeKey, KarnakValue)
   /// Focus entered (`true`) or left (`false`) the input.
   case focusChange(NodeKey, Bool)
   /// The keyboard's action key was pressed on a `text_field`.

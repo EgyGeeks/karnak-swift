@@ -26,6 +26,7 @@ struct TextFieldView: View {
   @State private var text: String
   @State private var sync: TextSync
   @State private var caret: CaretMove?
+  @State private var typedCaret: Int?
   @State private var hovered = false
   @FocusState private var focused: Bool
   @Environment(\.karnakInputs) private var inputs
@@ -103,7 +104,7 @@ struct TextFieldView: View {
       TextField("", text: $text, axis: .vertical)
         .lineLimit(Int(drawn.minLines)...Int(drawn.maxLines))
     } else if drawn.mask != nil, #available(iOS 18.0, *) {
-      CaretTextField(text: $text, caret: caret)
+      CaretTextField(text: $text, typedCaret: $typedCaret, caret: caret)
     } else {
       TextField("", text: $text)
     }
@@ -141,7 +142,9 @@ struct TextFieldView: View {
   /// field takes the text and the caret the mask gives, and the value without literals is the edit.
   private func edited(_ typed: String) {
     let maxLength = field.maxLength.map { Int($0.int32Value) }
-    let edit = fieldText.read(typed, after: sync.agreed, maxLength: maxLength)
+    let edit = fieldText.read(
+      typed, after: sync.agreed, caret: typedCaret.flatMap { $0 <= typed.utf16.count ? $0 : nil },
+      maxLength: maxLength)
     if edit.text != typed { text = edit.text }
     if let offset = edit.caret { caret = CaretMove(offset: offset, edit: (caret?.edit ?? 0) + 1) }
     apply(

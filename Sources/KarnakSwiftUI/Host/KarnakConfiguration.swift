@@ -42,10 +42,11 @@ public struct KarnakConfiguration {
   /// Headers computed for every request, for a token that changes. It is called off the main
   /// thread, must return quickly and must not throw: refresh a token beforehand.
   public var headerProvider: (@Sendable () -> [String: String])?
-  /// Called when a `post` action with `auth: "required"` finds nobody signed in, or its backend answers `401`
-  /// (ADR 0035, D3): open the app's sign-in. The post then runs its `onError` and is not resumed; the person taps again
-  /// once signed in. It runs off the main thread, so hop to the main actor before showing UI. `nil` does nothing more.
-  public var onSignInRequired: (@Sendable () -> Void)?
+  /// The app's sign-in gate (`docs/integration.md`, Sign-in gate): called on the main actor with a
+  /// ``KarnakSignInRequest`` when an action the author marked as needing sign-in runs signed out, or a signed-in
+  /// request gets a final `401`. Show the app's sign-in, then call `resume()` (the action runs once) or `cancel()`.
+  /// `nil`, the default, cancels every such action.
+  public var onSignInRequired: (@MainActor @Sendable (KarnakSignInRequest) -> Void)?
   /// The folder in the app bundle that holds the bundled resources snapshot `karnak resources pull`
   /// wrote (`manifest.json`, `strings/<locale>.json`, `theme.json`): the offline copy of the
   /// strings and colors that ``KarnakSwiftClient/resources`` reads on first launch and without a

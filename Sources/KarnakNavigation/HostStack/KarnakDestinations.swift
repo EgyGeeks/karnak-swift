@@ -28,9 +28,29 @@ extension View {
   public func karnakDestinations() -> some View {
     modifier(KarnakDestinations())
   }
+
+  /// ``karnakDestinations()`` with the host's default for the navigation bar above the screens it pushes, and above
+  /// the screens they push in turn. A screen that says (`screen.chrome.topBar`) wins: `none` hides the bar of its own
+  /// entry, `system` shows it. Pass ``KarnakNavigationBar/hidden`` when the app's screens draw their own top bar and
+  /// back button: the bar and its large title are hidden, and the system's swipe back from the edge keeps
+  /// working.
+  ///
+  /// ```swift
+  /// NavigationStack {
+  ///   HomeView().karnakDestinations(navigationBar: .hidden)
+  /// }
+  /// .karnakHost(karnak)
+  /// ```
+  ///
+  /// The root of the stack is the app's own view: hide its bar with `toolbarVisibility(_:for:)` as usual.
+  public func karnakDestinations(navigationBar: KarnakNavigationBar) -> some View {
+    modifier(KarnakDestinations(navigationBar: navigationBar))
+  }
 }
 
 private struct KarnakDestinations: ViewModifier {
+  /// The host's default for the bar above the pushed screens; `nil` keeps the one of the stack this view is in.
+  var navigationBar: KarnakNavigationBar?
   @Environment(\.karnakStack) private var position
   @Environment(\.karnakStackOpener) private var opener
   @Environment(\.karnakHostCallbacks) private var callbacks
@@ -46,7 +66,7 @@ private struct KarnakDestinations: ViewModifier {
     // declaration here, not a bare call.
     // swiftlint:disable:next redundant_discardable_let
     let _ = configure(level.stack)
-    KarnakStackLevelView(level: level, content: content)
+    KarnakStackLevelView(level: level, content: content, navigationBar: navigationBar)
       .onAppear { if inherited == nil { opener?.stackRegistry.register(ownStack) } }
   }
 
@@ -66,16 +86,21 @@ private struct KarnakDestinations: ViewModifier {
 private struct KarnakStackLevelView<Content: View>: View {
   let level: KarnakStackLevel
   let content: Content
+  /// The host's default for the bar above the pushed screens; `nil` keeps the one this view inherits.
+  let navigationBar: KarnakNavigationBar?
+  @Environment(\.karnakNavigationBar) private var inheritedBar
   @ObservedObject private var stack: KarnakHostStack
 
-  init(level: KarnakStackLevel, content: Content) {
+  init(level: KarnakStackLevel, content: Content, navigationBar: KarnakNavigationBar?) {
     self.level = level
     self.content = content
+    self.navigationBar = navigationBar
     stack = level.stack
   }
 
   var body: some View {
     content
+      .environment(\.karnakOverlayNavigationBar, navigationBar ?? inheritedBar)
       .environment(\.karnakStack, level)
       .environment(\.karnakInNavigationStack, true)
       .environment(\.karnakPushedAbove, stack.entries.count > level.depth)
@@ -90,6 +115,7 @@ private struct KarnakStackLevelView<Content: View>: View {
             .onAppear { stack.appeared(entry.id) }
             .karnakDestinations()
             .environment(\.karnakStack, KarnakStackLevel(stack: stack, depth: level.depth + 1))
+            .environment(\.karnakNavigationBar, navigationBar ?? inheritedBar)
             .id(entry.id)
         }
       }

@@ -51,6 +51,8 @@ protocol ScreenSession: AnyObject {
   func selectionChange(_ key: NodeKey, _ values: [String])
   /// The range slider `key` now holds `lower` to `upper` (an array of two numbers `valueChange`).
   func rangeChange(_ key: NodeKey, lower: Double, upper: Double)
+  /// The custom node `key` now holds `value`, the form value its host component wrote (ADR 0051).
+  func customValueChange(_ key: NodeKey, _ value: KarnakValue)
   /// Focus entered (`true`) or left (`false`) the input `key`.
   func focusChange(_ key: NodeKey, _ focused: Bool)
   /// The keyboard's action key was pressed on the text field `key`.
@@ -91,6 +93,7 @@ extension ScreenSession {
   func checkedChange(_ key: NodeKey, _ checked: Bool) {}
   func selectionChange(_ key: NodeKey, _ values: [String]) {}
   func rangeChange(_ key: NodeKey, lower: Double, upper: Double) {}
+  func customValueChange(_ key: NodeKey, _ value: KarnakValue) {}
   func focusChange(_ key: NodeKey, _ focused: Bool) {}
   func imeAction(_ key: NodeKey) {}
   func saveState() -> String? { nil }
@@ -106,6 +109,7 @@ extension ScreenSession {
     case .checkedChange(let key, let checked): checkedChange(key, checked)
     case .selectionChange(let key, let values): selectionChange(key, values)
     case .rangeChange(let key, let lower, let upper): rangeChange(key, lower: lower, upper: upper)
+    case .customValue(let key, let value): customValueChange(key, value)
     case .focusChange(let key, let focused): focusChange(key, focused)
     case .imeAction(let key): imeAction(key)
     }
@@ -280,6 +284,10 @@ final class ControllerSession: ScreenSession {
       KarnakValueNumber.make(value: lower), KarnakValueNumber.make(value: upper),
     ]
     controller.valueChange(key: key, value: KarnakValueArray.make(values: items))
+  }
+
+  func customValueChange(_ key: NodeKey, _ value: KarnakValue) {
+    controller.valueChange(key: key, value: value)
   }
 
   func focusChange(_ key: NodeKey, _ focused: Bool) {

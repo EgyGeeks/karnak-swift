@@ -80,7 +80,8 @@ struct ContainedStackView: View {
       }
       .navigationDestination(for: String.self) { id in
         if let entry = overlay.entries.first(where: { $0.id == id }) {
-          ContainedEntryView(entry: entry, fillsSpace: fillsSpace, onHeight: report(id))
+          ContainedEntryView(
+            entry: entry, fillsSpace: fillsSpace, onHeight: report(id), pushed: true)
         }
       }
       .environment(\.karnakInNavigationStack, true)
@@ -95,6 +96,9 @@ struct ContainedEntryView: View {
   let entry: OverlayEntry
   let fillsSpace: Bool
   let onHeight: (CGFloat) -> Void
+  /// Whether the entry is pushed on its stack, so its navigation bar holds a back button a screen that draws its own
+  /// top bar hides (`screen.chrome.topBar`).
+  var pushed = false
 
   var body: some View {
     if fillsSpace || entry.route != nil {
@@ -107,7 +111,7 @@ struct ContainedEntryView: View {
 
   @ViewBuilder private var content: some View {
     if let model = entry.model {
-      OverlayScreenView(model: model, fillsSpace: fillsSpace)
+      OverlayScreenView(model: model, fillsSpace: fillsSpace, pushed: pushed)
     } else if let route = entry.route {
       KarnakRouteEntryView(route: route)
     }
@@ -118,10 +122,18 @@ struct ContainedEntryView: View {
 struct OverlayScreenView: View {
   let model: ScreenModel
   let fillsSpace: Bool
+  /// Whether the entry is pushed on its stack: a screen that draws its own top bar, or says nothing under the host's
+  /// `karnakDestinations(navigationBar: .hidden)`, then hides the entry's bar.
+  var pushed = false
   @Environment(\.karnakScreenStates) private var screenStates
+  @Environment(\.karnakOverlayNavigationBar) private var navigationBar
 
   var body: some View {
     phaseView.presentingEffects(model.effects)
+      .background {
+        Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
+          .screenNavigationBar(hidden: pushed && model.hidesNavigationBar(host: navigationBar))
+      }
   }
 
   @ViewBuilder private var phaseView: some View {

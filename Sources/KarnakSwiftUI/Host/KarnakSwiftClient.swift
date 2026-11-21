@@ -104,7 +104,12 @@ public final class KarnakSwiftClient: @unchecked Sendable {
       log: log)
     for (name, value) in configuration.headers { config.setHeader(name: name, value: value) }
     configuration.headerProvider.map { provider in config.addHeaderProvider(provider: provider) }
-    configuration.onSignInRequired.map { hook in config.onSignInRequired = { hook() } }
+    configuration.onSignInRequired.map { hook in
+      config.onSignInRequired = { request in
+        let wrapped = KarnakSignInRequest(request)
+        Task { @MainActor in hook(wrapped) }
+      }
+    }
     config.clientEventsEnabled = configuration.clientEvents.enabled
     config.clientEventsSampleRate = configuration.clientEvents.sampleRate
     config.listener = configuration.listener.map(ListenerBridge.init)

@@ -41,6 +41,7 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
   @Environment(\.karnakHostCallbacks) private var hostCallbacks
   @Environment(\.karnakStack) private var stackLevel
   @Environment(\.karnakInNavigationStack) private var inNavigationStack
+  @Environment(\.karnakNavigationBar) private var navigationBar
   @Environment(\.karnakScreenObserver) private var screenObserver
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.layoutDirection) private var layoutDirection
@@ -88,6 +89,10 @@ struct ScreenPresenter<Loading: View, Failure: View>: View {
       // It has a view of its own, so the branch it takes never replaces the lifecycle view below.
       Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
         .screenNavigationTitle(fillsSpace && inNavigationStack ? model.title : nil)
+      // A screen that draws its own top bar hides its entry's (`screen.chrome.topBar`, or the host's default).
+      Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
+        .screenNavigationBar(
+          hidden: fillsSpace && inNavigationStack && model.hidesNavigationBar(host: navigationBar))
       // The lifecycle hangs on a view of its own: a phase that draws nothing, such as a
       // section's default loading view, is no view at all, and SwiftUI never runs its tasks.
       Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)

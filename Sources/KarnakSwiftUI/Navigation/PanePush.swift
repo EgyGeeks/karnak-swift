@@ -32,7 +32,7 @@ struct PanePushLevel: View {
     let current = overlay.entries.indices.contains(depth) ? overlay.entries[depth] : nil
     Group {
       if let entry = current ?? shown {
-        ContainedEntryView(entry: entry, fillsSpace: true, onHeight: { _ in })
+        ContainedEntryView(entry: entry, fillsSpace: true, onHeight: { _ in }, pushed: true)
           .id(entry.id)
           .task(id: PaneEnvironmentKey(environment, entries: [entry.id])) {
             entry.model?.setEnvironment(environment)

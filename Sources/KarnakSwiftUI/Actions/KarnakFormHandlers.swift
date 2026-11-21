@@ -44,9 +44,17 @@ public struct KarnakSubmitAction: @unchecked Sendable {
   /// A final action: closes the sheet or dialog the form is in, or goes back from a full screen.
   public static let dismiss = Self(json: ["type": "dismiss"])
 
-  /// A final action: opens the Karnak screen `screenId` with `params`.
-  public static func openScreen(_ screenId: String, params: [String: Any] = [:]) -> Self {
-    Self(json: ["type": "open_screen", "screenId": screenId, "params": params])
+  /// A final action: opens the Karnak screen `screenId` with `params`, joined to the navigation as `presentation`
+  /// (``KarnakPresentation/push`` by default, as in Kotlin's `SubmitActions.openScreen`). A chain of steps
+  /// (phone, code, name) answers with ``KarnakPresentation/replace`` so it stays one entry.
+  public static func openScreen(
+    _ screenId: String, params: [String: Any] = [:], presentation: KarnakPresentation = .push
+  ) -> Self {
+    Self(
+      json: [
+        "type": "open_screen", "screenId": screenId, "params": params,
+        "presentation": presentation.rawValue,
+      ])
   }
 }
 

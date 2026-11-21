@@ -28,12 +28,15 @@ struct FieldText {
     mask?.valueOf(shown: native) ?? native
   }
 
-  /// The person changed the native text to `typed` while the field held `value`. SwiftUI does not say where the caret
-  /// is with the edit, so the mask finds the change by the text both share; `maxLength` is the mask's limit.
-  func read(_ typed: String, after value: String, maxLength: Int?) -> Edit {
+  /// The person changed the native text to `typed` while the field held `value`, with the caret at `caret` (a UTF-16
+  /// offset) when the field knows it (``CaretTextField``); `maxLength` is the mask's limit. Without a caret the mask
+  /// finds the change by the text both share, which among repeated digits can be the wrong one of them (`٠١٠` then a
+  /// `٠`), so the caret is passed whenever the platform has it.
+  func read(_ typed: String, after value: String, caret: Int? = nil, maxLength: Int?) -> Edit {
     guard let mask else { return Edit(value: typed, text: typed, caret: nil) }
     let edit = mask.edit(
-      value: value, text: typed, caret: nil, limit: maxLength.map { KotlinInt(int: Int32($0)) })
+      value: value, text: typed, caret: caret.map { KotlinInt(int: Int32($0)) },
+      limit: maxLength.map { KotlinInt(int: Int32($0)) })
     return Edit(
       value: edit.value, text: edit.text, caret: edit.text == typed ? nil : Int(edit.caret))
   }
@@ -48,18 +51,33 @@ struct CaretMove: Equatable {
 
 /// A masked field's one-line `TextField`, whose caret goes where the mask put it after it rewrote the text. The
 /// selection binding is iOS 18's; below it the caret is where UIKit leaves it after a replaced text, at the end.
+///
+/// `typedCaret` is the caret the field had when the person last changed the text: SwiftUI moves the selection before
+/// it reports the text, so the mask can read the edit where it was made instead of guessing it from the text.
 @available(iOS 18.0, *)
 struct CaretTextField: View {
   @Binding var text: String
+  @Binding var typedCaret: Int?
   let caret: CaretMove?
   @State private var selection: TextSelection?
 
   var body: some View {
     TextField("", text: $text, selection: $selection)
+      .onChange(of: selection) { _, selection in typedCaret = selection.flatMap(caretOffset) }
       .onChange(of: caret) { _, move in
         guard let move else { return }
         let offset = min(max(0, move.offset), text.utf16.count)
         selection = TextSelection(insertionPoint: String.Index(utf16Offset: offset, in: text))
       }
+  }
+
+  /// The end of the selection, the caret of an edit, as a UTF-16 offset in the text.
+  private func caretOffset(of selection: TextSelection) -> Int? {
+    switch selection.indices {
+    case .selection(let range):
+      // The selection can be ahead of the text SwiftUI reports next: an index past it would trap.
+      range.upperBound <= text.endIndex ? range.upperBound.utf16Offset(in: text) : nil
+    default: nil
+    }
   }
 }
