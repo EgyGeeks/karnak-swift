@@ -25,7 +25,7 @@ struct TabStripView: View {
   }
 
   private var segmented: some View {
-    Picker(tabs.semantics.label ?? "", selection: Binding(get: { shown }, set: pick)) {
+    Picker(tabs.semantics.label ?? "", selection: Binding(get: { shown }, set: { pick($0) })) {
       ForEach(Array(tabs.tabs.enumerated()), id: \.element.option.value) { index, tab in
         Text(tab.option.label.words).tag(index)
       }

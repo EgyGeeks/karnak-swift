@@ -63,6 +63,9 @@ struct ResolvedScreenView: View {
   /// The tooltip a node of this screen shows.
   @State private var tooltips = TooltipState()
 
+  /// The rows of this screen that scroll effects follow, kept across updates.
+  @State private var scrollAnchors = ScrollAnchorProgress()
+
   var body: some View {
     actions.handler = onAction
     actions.appearHandler = onAppear
@@ -90,6 +93,7 @@ struct ResolvedScreenView: View {
     // Over the floating layer, so a floating view's node shows its tooltip above it too.
     .tooltipLayer()
     .environment(\.karnakTooltips, tooltips)
+    .environment(\.karnakScrollAnchors, scrollAnchors)
     .environment(\.karnakActions, actions)
     .environment(\.karnakInputs, inputs)
     .environment(\.karnakInputFocus, focus ?? ownFocus)

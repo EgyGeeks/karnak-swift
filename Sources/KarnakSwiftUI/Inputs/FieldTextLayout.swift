@@ -16,12 +16,18 @@ struct FieldTextLayout: Equatable {
   let direction: LayoutDirection
   /// Where its lines start, read in ``direction``.
   let alignment: TextAlignment
+  /// The edge of the screen the text's box is anchored to, read in the screen's own direction: the left edge of a
+  /// right-to-left screen for a Latin-digit keyboard, which is its `.trailing`; the screen's start for the rest.
+  let anchor: HorizontalAlignment
 
   /// The layout of a field with `keyboard` in a screen laid out `screen`.
   init(keyboard: InputKeyboard, screen: LayoutDirection) {
     let leftToRight = keyboard.readsLeftToRight
     direction = leftToRight ? .leftToRight : screen
-    alignment = leftToRight && screen == .rightToLeft ? .trailing : .leading
+    // Latin-digit keyboards sit at the left edge in every screen; the others at the screen's start.
+    let atLeftEdge = keyboard.holdsLatinDigits
+    alignment = leftToRight && screen == .rightToLeft && !atLeftEdge ? .trailing : .leading
+    anchor = atLeftEdge && screen == .rightToLeft ? .trailing : .leading
   }
 }
 
@@ -30,6 +36,16 @@ extension InputKeyboard {
   var readsLeftToRight: Bool {
     switch self {
     case .email, .number, .decimal, .phone, .url: true
+    default: false
+    }
+  }
+}
+
+extension InputKeyboard {
+  /// Whether the field holds Latin digits only, laid out at the left edge: the `number`, `decimal` and `phone` keyboards.
+  var holdsLatinDigits: Bool {
+    switch self {
+    case .number, .decimal, .phone: true
     default: false
     }
   }

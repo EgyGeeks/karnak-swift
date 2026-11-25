@@ -13,10 +13,17 @@ import SwiftUI
 ///
 /// Back never changes the tab on iOS (`KarnakTabBack.stayInTab`): the back button and the edge
 /// swipe pop within the tab.
+///
+/// Made from a ``KarnakTabList`` (`karnak.tabs(fallback:)`, ADR 0047), it shows the server's tab list: an action item
+/// (`KarnakTab.isAction`) is drawn like a tab and has no stack, and a tap on it asks ``shouldSelect``, then runs its
+/// `open_screen` on the selected tab's stack; the selection stays.
 @MainActor
 public final class KarnakTabStore: ObservableObject {
-  /// The tabs, in the bar's order.
+  /// The tabs, in the bar's order, action items among them.
   public let tabs: [KarnakTab]
+  /// The revision of the server's tab list, or nil for the app's own tabs: a selection saved under another revision
+  /// is not restored (``restore(_:savedUnder:)``).
+  public let revision: String?
   /// The selected tab's id.
   @Published public private(set) var selected: String
   /// The search tab's id (`KarnakTabRole.search`), or nil: ``KarnakTabView`` makes it a `Tab(role: .search)` on
@@ -27,6 +34,10 @@ public final class KarnakTabStore: ObservableObject {
   /// Called when the user selected a tab that needs a signed-in user and nobody is signed in: show
   /// the sign-in, then call ``select(_:)`` again.
   public var onSignInNeeded: (String) -> Void = { _ in }
+  /// Asked on each tap on a tab (``selection``), before the tab rules: `false` leaves the bar as it was, for an item
+  /// that acts instead of showing a tab, such as a "+" that presents the app's sheet. The default lets every tap
+  /// through. ``select(_:)`` and links don't ask it.
+  public var shouldSelect: (String) -> Bool = { _ in true }
 
   /// What links need of the tabs: give it to `KarnakLinkOptions(tabs:)`, so a link whose pattern
   /// names a tab shows that tab popped to its root and opens its target on that tab's stack.
@@ -38,6 +49,10 @@ public final class KarnakTabStore: ObservableObject {
   private var callbacks: KarnakHostCallbacks?
   private var bridges: [String: HostActionBridge] = [:]
   private var restored = false
+  /// The navigation module of the client the tabs appeared under: it runs an action item's `open_screen`.
+  private var module: KarnakNavigationModule?
+  /// The `modal` or `sheet` an action item opened over the shell, which ``KarnakTabView`` presents.
+  let shell = ShellOverlays()
 
   /// - Parameters:
   ///   - tabs: The tabs, in the bar's order: at least one, with unique ids.
@@ -49,16 +64,30 @@ public final class KarnakTabStore: ObservableObject {
     self.init(tabs: tabs, startTab: startTab, signedIn: signedIn, makeStack: { KarnakHostStack() })
   }
 
+  /// The tabs of `list`, the tab list `karnak.tabs(fallback:)` picked at the cold start (ADR 0047): the server's, with
+  /// its action items and its revision, or the app's own.
+  ///
+  /// - Parameters:
+  ///   - list: The tabs, the one shown first and the revision.
+  ///   - signedIn: Whether a user is signed in now: the same function as the links' `signedIn`.
+  public convenience init(list: KarnakTabList, signedIn: @escaping () -> Bool = { true }) {
+    self.init(
+      tabs: list.tabs, startTab: list.startTab, revision: list.revision, signedIn: signedIn,
+      makeStack: { KarnakHostStack() })
+  }
+
   /// Tabs whose stacks `makeStack` makes: tests settle pushes at once.
   init(
-    tabs: [KarnakTab], startTab: String?, signedIn: @escaping () -> Bool,
+    tabs: [KarnakTab], startTab: String?, revision: String? = nil, signedIn: @escaping () -> Bool,
     makeStack: () -> KarnakHostStack
   ) {
     self.tabs = tabs
+    self.revision = revision
     searchTab = KarnakTabs.companion.searchTab(tabs: tabs, debug: isDebugBuild)
     let start = startTab ?? tabs.first?.id ?? ""
     selected = start
-    stacks = Dictionary(uniqueKeysWithValues: tabs.map { ($0.id, makeStack()) })
+    stacks = Dictionary(
+      uniqueKeysWithValues: tabs.filter { !$0.isAction }.map { ($0.id, makeStack()) })
     let port = StackPort()
     model = KarnakTabs(
       tabs: tabs, stacks: port, startTab: start, backAtRoot: .stayInTab,
@@ -69,15 +98,21 @@ public final class KarnakTabStore: ObservableObject {
   /// The selection a `TabView` binds to: a tap on the selected tab reaches it too, which pops that
   /// tab to its root, or asks for a scroll to its top at the root (``onScrollToTop``).
   public var selection: Binding<String> {
-    Binding(get: { self.selected }, set: { self.select($0) })
+    Binding(get: { self.selected }, set: { self.tapped($0) })
   }
 
   /// The user selected `tab`. Returns what changed; the store calls ``onScrollToTop`` and
-  /// ``onSignInNeeded`` itself.
+  /// ``onSignInNeeded`` itself. An action item runs its `open_screen` on the selected tab and changes nothing.
   @discardableResult
   public func select(_ tab: String) -> KarnakTabChange {
+    if let item = tabs.first(where: { $0.id == tab }), item.isAction {
+      runAction(of: item)
+    }
     let change = model.select(tab: tab)
-    if change == .scrollToTop {
+    if change == KarnakTabChange.none, selected != tab {
+      // A `TabView` that already shows the tapped item reads the selection again and goes back to the selected tab.
+      objectWillChange.send()
+    } else if change == .scrollToTop {
       onScrollToTop(tab)
     } else if change == .signInNeeded {
       // `selected` did not change, so nothing was published: a `TabView` that already shows the
@@ -110,6 +145,26 @@ public final class KarnakTabStore: ObservableObject {
     model.restore(saved: saved)
   }
 
+  /// ``restore(_:)`` for a selection saved with the tab list's ``revision``: one saved under another revision (or
+  /// under the app's own tabs, nil) restores nothing and shows the start tab (ADR 0047, D8). Save ``revision`` beside
+  /// ``selected``.
+  public func restore(_ saved: String?, savedUnder revision: String?) {
+    restore(revision == self.revision ? saved : nil)
+  }
+
+  private func tapped(_ tab: String) {
+    guard shouldSelect(tab) else {
+      objectWillChange.send()
+      return
+    }
+    select(tab)
+  }
+
+  private func runAction(of item: KarnakTab) {
+    guard let module, let actions = bridge(of: selected) else { return }
+    shell.show(module.runTabAction(tab: item, actions: actions))
+  }
+
   /// The host stack of `tab`.
   func stack(_ tab: String) -> KarnakHostStack? {
     stacks[tab]
@@ -121,6 +176,7 @@ public final class KarnakTabStore: ObservableObject {
     guard let opener, let stack = stacks[tab] else { return }
     self.opener = opener
     self.callbacks = callbacks
+    module = (opener as? KarnakSwiftClient)?.flowModule
     for (id, bridge) in bridges { bridge.update(navigation(of: id, callbacks)) }
     stack.entryRemoved = { [weak opener] in opener?.entryRemoved($0) }
     stack.report = { [weak opener] in opener?.report($0) }
@@ -133,7 +189,13 @@ public final class KarnakTabStore: ObservableObject {
   /// nil for a tab the app does not have, one a signed-out user may not see, or before any tab
   /// appeared under a host.
   func hostActions(forLink tab: String) -> HostActions? {
-    guard stacks[tab] != nil, let callbacks, openLink(tab) != .signInNeeded else { return nil }
+    guard stacks[tab] != nil, callbacks != nil, openLink(tab) != .signInNeeded else { return nil }
+    return bridge(of: tab)
+  }
+
+  /// The host's hooks with `tab`'s stack as the navigation, nil before any tab appeared under a host.
+  private func bridge(of tab: String) -> HostActions? {
+    guard stacks[tab] != nil, let callbacks else { return nil }
     let bridge =
       bridges[tab]
       ?? HostActionBridge { [weak self] in self?.opener?.report($0) }

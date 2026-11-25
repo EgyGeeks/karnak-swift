@@ -4,7 +4,9 @@ import SwiftUI
 /// The lazy list: a vertical `ScrollView` of a `LazyVStack` whose rows are built by key, so a row keeps its
 /// state and the scroll keeps its place when an update keeps the keys (``ListAnchoring``). A row sits in the
 /// list's width at its own `align`; one that `stretch`es or `fill`s takes all of it. Each row sees the list's
-/// own viewport for `actions.appear`, and the content padding scrolls with the rows.
+/// own viewport for `actions.appear`, and the content padding scrolls with the rows. A list with a pinned row or tabs
+/// whose panels flow draws its rows in sections (``ListSectionsView``, ADR 0055); any other keeps the plain stack. A
+/// row scroll effects follow reports its progress (``ScrollAnchorReport``).
 struct ScrollingList: View {
   let list: ResolvedList
   let placement: ChildPlacement
@@ -14,6 +16,10 @@ struct ScrollingList: View {
   @State private var contentHeight: CGFloat = .infinity
   @State private var anchoring = ListAnchoring()
   @State private var scrollReporter = ListScrollReporter()
+  @State private var choices = TabChoices()
+  @State private var flowing = FlowingFrames()
+  @State private var anchorPlaces = ListAnchorPlaces()
+  @Environment(\.karnakScrollAnchors) private var scrollAnchors
   @Environment(\.karnakActions) private var actions
   @Environment(\.karnakComponents) private var components
 
@@ -32,17 +38,32 @@ struct ScrollingList: View {
     let measures = outerViewport != nil
     // In `body`, not `onChange`: the row at the top must be captured before the new rows are laid out, as the
     // screen's `ContentGate` captures it before an update, and `onChange` runs after that layout.
-    anchoring.rowsChanged(to: list.children.map(\.key.value))
+    let sections =
+      ListSection.needed(by: list) ? ListSection.of(list, components: components) : nil
+    anchoring.rowsChanged(to: sections?.flatMap(\.keys) ?? list.children.map(\.key.value))
     let scrollHandle = list.events[scrollChangeEvent]
     let reportsScroll = scrollHandle != nil
     configure(scrollReporter, handle: scrollHandle)
+    anchorPlaces.anchors = scrollAnchors
+    let followed = list.children.contains { $0.layout.scrollAnchor != nil }
     return ScrollView {
-      LazyVStack(alignment: .leading, spacing: points(dp: list.spacing)) {
-        ForEach(list.children.compactMap { components.drawnNode($0) }, id: \.key.value) { child in
-          ListRow(node: child)
-            .modifier(RowAnchorModifier(key: child.key.value))
+      LazyVStack(
+        alignment: .leading, spacing: points(dp: list.spacing),
+        pinnedViews: sections == nil ? [] : .sectionHeaders
+      ) {
+        if let sections {
+          ListSectionsView(
+            sections: sections, inset: points(dp: list.pinInset), spacing: points(dp: list.spacing),
+            choices: choices, frames: flowing)
+        } else {
+          ForEach(list.children.compactMap { components.drawnNode($0) }, id: \.key.value) { child in
+            ListRow(node: child)
+              .modifier(RowAnchorModifier(key: child.key.value))
+              .scrollAnchor(child.layout.scrollAnchor)
+          }
         }
       }
+      .anchorPlaces(followed ? anchorPlaces : nil)
       .padding(edgeInsets(list.contentPadding))
       .scrollSentinel(isEnabled: reportsScroll) { scrollReporter.moved(to: $0) }
       .onGeometryChange(for: CGFloat.self) {
@@ -55,6 +76,7 @@ struct ScrollingList: View {
           ScrollProbe { anchoring.attach($0) }
           ViewportProbe { viewport = $0 }
         }
+        if sections != nil { ScrollProbe { [flowing] in flowing.scroll = $0 } }
       }
     }
     .measuresScroll()
@@ -68,7 +90,7 @@ struct ScrollingList: View {
 }
 
 /// One row of a lazy list: its node in a slot as wide as the list, placed by the row's own `align`.
-private struct ListRow: View {
+struct ListRow: View {
   let node: ResolvedNode
 
   var body: some View {

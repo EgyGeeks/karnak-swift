@@ -52,7 +52,7 @@ struct SegmentedView: View {
 
   /// The engine's selection, read on every draw; a pick goes to the engine, which answers with the next tree.
   private var selection: Binding<String> {
-    Binding(get: { control.selected ?? "" }, set: pick)
+    Binding(get: { control.selected ?? "" }, set: { pick($0) })
   }
 
   private func pick(_ value: String) {

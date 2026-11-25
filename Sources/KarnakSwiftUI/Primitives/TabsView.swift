@@ -6,7 +6,8 @@ import SwiftUI
 /// A panel is built the first time its tab is shown and is kept while the screen lives, hidden (and out of VoiceOver
 /// and hit testing) while another tab is shown, so it keeps its state and scroll position; the panels share the
 /// height left below the strip. A tap on a tab shows its panel and reports `pageChange` with its position as the
-/// person's; the engine then writes `current`, and a tree that moves `current` (a `set_value`) shows that tab.
+/// person's; the engine then writes `current`, and a tree that moves `current` (a `set_value`) shows that tab. Tabs whose
+/// panels flow in the page (`flows`, ADR 0055) show the shown panel alone, at its own height: a hidden panel takes no room.
 struct TabsView: View {
   let tabs: ResolvedTabs
   let placement: ChildPlacement
@@ -39,7 +40,25 @@ struct TabsView: View {
     .onAppear { report(shown, initial: true, byUser: false) }
   }
 
+  @ViewBuilder
   private var panels: some View {
+    if tabs.flows {
+      flowingPanel
+    } else {
+      pagedPanels
+    }
+  }
+
+  /// The shown panel at its own height, part of the page's scroll.
+  @ViewBuilder
+  private var flowingPanel: some View {
+    if let node = tabs.drawnPanel(shown, in: components) {
+      NodeView(node: node, placement: ChildPlacement(acceptsProposal: [.horizontal])).equatable()
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+  }
+
+  private var pagedPanels: some View {
     ZStack(alignment: .topLeading) {
       ForEach(Array(tabs.panels.children.enumerated()), id: \.element.key.value) { index, panel in
         if built.contains(panel.key.value), let node = components.drawnNode(panel) {
@@ -80,14 +99,30 @@ struct TabsView: View {
   }
 
   private func report(_ index: Int, initial: Bool, byUser: Bool) {
-    guard let handle = tabs.events[pageChangeEvent], tabs.panels.children.indices.contains(index)
-    else { return }
-    actions.event(
-      handle,
-      payload: PageChangeReporter.payload(
-        index: index, key: panelKey(tabs, index), initial: initial),
-      byUser: byUser)
+    reportPageChange(of: tabs, index: index, initial: initial, byUser: byUser, to: actions)
   }
+}
+
+extension ResolvedTabs {
+  /// The panel at `index` as the host draws it; nil when there is none or it draws nothing.
+  @MainActor
+  func drawnPanel(_ index: Int, in components: ComponentRegistry) -> ResolvedNode? {
+    guard panels.children.indices.contains(index) else { return nil }
+    return components.drawnNode(panels.children[index])
+  }
+}
+
+/// Reports tab `index` of `tabs` to their `pageChange`, as the person's when `byUser`.
+@MainActor
+func reportPageChange(
+  of tabs: ResolvedTabs, index: Int, initial: Bool, byUser: Bool, to actions: ActionSink
+) {
+  guard let handle = tabs.events[pageChangeEvent], tabs.panels.children.indices.contains(index)
+  else { return }
+  actions.event(
+    handle,
+    payload: PageChangeReporter.payload(index: index, key: panelKey(tabs, index), initial: initial),
+    byUser: byUser)
 }
 
 /// The key of the panel at `index` of `tabs`.

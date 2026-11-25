@@ -7,6 +7,9 @@ import SwiftUI
 /// the one Compose calls too.
 struct FieldText {
   let mask: TextMask?
+  /// Whether the field holds Latin digits only (a phone or digits field): Arabic-Indic digits typed or pasted are read
+  /// as `0`-`9` before the mask or the value sees them (`docs/renderer-contract.md`, Latin digits).
+  var latinDigits = false
 
   /// What an edit of the native text comes to.
   struct Edit: Equatable {
@@ -32,13 +35,14 @@ struct FieldText {
   /// offset) when the field knows it (``CaretTextField``); `maxLength` is the mask's limit. Without a caret the mask
   /// finds the change by the text both share, which among repeated digits can be the wrong one of them (`٠١٠` then a
   /// `٠`), so the caret is passed whenever the platform has it.
-  func read(_ typed: String, after value: String, caret: Int? = nil, maxLength: Int?) -> Edit {
+  func read(_ native: String, after value: String, caret: Int? = nil, maxLength: Int?) -> Edit {
+    let typed = latinDigits ? Digits.shared.ascii(text: native) : native
     guard let mask else { return Edit(value: typed, text: typed, caret: nil) }
     let edit = mask.edit(
       value: value, text: typed, caret: caret.map { KotlinInt(int: Int32($0)) },
       limit: maxLength.map { KotlinInt(int: Int32($0)) })
     return Edit(
-      value: edit.value, text: edit.text, caret: edit.text == typed ? nil : Int(edit.caret))
+      value: edit.value, text: edit.text, caret: edit.text == native ? nil : Int(edit.caret))
   }
 }
 

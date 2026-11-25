@@ -24,12 +24,19 @@ import SwiftUI
 /// The label and icon are the app's: draw them in `label`. Without a `label`, each tab shows its
 /// server label and theme icon (``KarnakTabLabel``), the bar takes the theme's tint, and on iOS 26 it shrinks as the
 /// content scrolls as the theme's `minimize` says. A tab's badge is the app's state: return it from `badge`.
+///
+/// With a store made from a server's tab list (``KarnakTabStore/init(list:signedIn:)``), each tab's root is the app's
+/// view: draw the tab's Karnak screen, `KarnakScreen(tab.start ?? tab.id)`, for the tabs the app has no view of its
+/// own for, or leave `root` out (the themed initializer) for Karnak screens everywhere. The selection is saved with the
+/// list's revision, and a scene restored under another revision shows the start tab.
 public struct KarnakTabView<Root: View, TabLabel: View>: View {
   @ObservedObject private var store: KarnakTabStore
   private let root: (KarnakTab) -> Root
   private let label: (KarnakTab, Bool, KarnakTabIcons) -> TabLabel
   private let badge: (KarnakTab) -> KarnakTabBadge
   @SceneStorage("karnak.tabs.selected") private var saved = ""
+  /// The revision of the server's tab list `saved` was saved under: empty for the app's own tabs.
+  @SceneStorage("karnak.tabs.revision") private var savedRevision = ""
   @Environment(\.karnakStackOpener) private var opener
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.layoutDirection) private var layoutDirection
@@ -59,10 +66,16 @@ public struct KarnakTabView<Root: View, TabLabel: View>: View {
 
   public var body: some View {
     tabView
+      .karnakShellOverlays(store.shell)
       .modifier(ThemeTint(themed: themed, color: icons.tint))
       .modifier(MinimizeOnScroll(minimize: minimize))
-      .onAppear { store.restore(saved.isEmpty ? nil : saved) }
-      .onChange(of: store.selected) { _, tab in saved = tab }
+      .onAppear {
+        store.restore(saved.isEmpty ? nil : saved, savedUnder: savedRevision.isEmpty ? nil : savedRevision)
+      }
+      .onChange(of: store.selected) { _, tab in
+        saved = tab
+        savedRevision = store.revision ?? ""
+      }
       .task(id: themeKey) { drawIcons() }
       .task(id: themedClient) {
         guard themed, let client = opener as? KarnakSwiftClient else { return }
@@ -118,10 +131,15 @@ public struct KarnakTabView<Root: View, TabLabel: View>: View {
     }
   }
 
-  private func stack(_ tab: KarnakTab) -> some View {
-    // The theme's tint stays on the bar: under it the tab's content keeps the app's accent color.
-    NavigationStack { root(tab).karnakTab(tab.id, of: store) }
-      .modifier(ThemeTint(themed: themed, color: .accentColor))
+  @ViewBuilder private func stack(_ tab: KarnakTab) -> some View {
+    if tab.isAction {
+      // An action item is never selected: its tab has nothing to show.
+      Color.clear
+    } else {
+      // The theme's tint stays on the bar: under it the tab's content keeps the app's accent color.
+      NavigationStack { root(tab).karnakTab(tab.id, of: store) }
+        .modifier(ThemeTint(themed: themed, color: .accentColor))
+    }
   }
 }
 
@@ -183,6 +201,22 @@ extension KarnakTabView where TabLabel == KarnakTabLabel {
     }
     self.badge = badge
     self.themed = true
+  }
+}
+
+extension KarnakTabView
+where TabLabel == KarnakTabLabel, Root == KarnakScreen<KarnakLoadingView, KarnakErrorView> {
+  /// A themed tab view whose every tab is rooted at its Karnak screen: the tab's `start` from a server's tab list
+  /// (ADR 0047), else the screen with the tab's id.
+  ///
+  /// ```swift
+  /// KarnakTabView(tabs)
+  /// ```
+  public init(
+    _ store: KarnakTabStore,
+    badge: @escaping (KarnakTab) -> KarnakTabBadge = { _ in KarnakTabBadge.companion.none }
+  ) {
+    self.init(store, badge: badge) { tab in KarnakScreen(tab.start ?? tab.id) }
   }
 }
 

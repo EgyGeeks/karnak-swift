@@ -20,7 +20,9 @@ struct NodeView: View, Equatable {
   }
 
   var body: some View {
-    drawn.floatingAnchor(of: node)
+    // On the whole node, whatever draws it (a button's own box, an interaction style): the effect is drawn only, so the
+    // floating anchor around it still reads the node's laid-out box.
+    drawn.scrollEffect(node.layout.scrollEffect).floatingAnchor(of: node)
   }
 
   @ViewBuilder

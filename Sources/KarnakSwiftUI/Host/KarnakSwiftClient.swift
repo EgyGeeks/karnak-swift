@@ -28,7 +28,7 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   /// The custom components the app registered with ``KarnakConfiguration/components(_:)``.
   let components: ComponentRegistry
   /// The installed flows module (`KarnakFlows`), or nil when the app didn't add one.
-  let flowModule: KarnakNavigationModule?
+  package let flowModule: KarnakNavigationModule?
 
   /// What tells this client's saved state from another client's in the same app: its server and client key.
   let savedStateScope: String

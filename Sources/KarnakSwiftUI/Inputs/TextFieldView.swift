@@ -47,7 +47,10 @@ struct TextFieldView: View {
     InputFrame(
       input: drawn, placement: placement, label: drawn.label, support: drawn.error ?? drawn.helper
     ) {
-      ZStack(alignment: drawn.maxLines > 1 ? .topLeading : .leading) {
+      ZStack(
+        alignment: Alignment(
+          horizontal: layout.anchor, vertical: drawn.maxLines > 1 ? .top : .center)
+      ) {
         if text.isEmpty, let placeholder = drawn.placeholder {
           InputTextView(placeholder, layout: layout)
         }
@@ -110,7 +113,9 @@ struct TextFieldView: View {
     }
   }
 
-  private var fieldText: FieldText { FieldText(mask: field.mask) }
+  private var fieldText: FieldText {
+    FieldText(mask: field.mask, latinDigits: field.keyboard.holdsLatinDigits)
+  }
 
   /// The tree's value and the engine's count of the field's edits it was resolved with.
   private var tree: TextSync.Tree { TextSync.Tree(value: field.value, edits: Int(field.edits)) }
@@ -145,6 +150,7 @@ struct TextFieldView: View {
     let edit = fieldText.read(
       typed, after: sync.agreed, caret: typedCaret.flatMap { $0 <= typed.utf16.count ? $0 : nil },
       maxLength: maxLength)
+    // A mask's text, or Latin digits for Arabic-Indic ones.
     if edit.text != typed { text = edit.text }
     if let offset = edit.caret { caret = CaretMove(offset: offset, edit: (caret?.edit ?? 0) + 1) }
     apply(
@@ -203,7 +209,7 @@ private struct ObservedValueStyle: ViewModifier {
 func uiKeyboard(for keyboard: InputKeyboard) -> UIKeyboardType {
   switch keyboard {
   case .email: .emailAddress
-  case .number: .numberPad
+  case .number: .asciiCapableNumberPad
   case .decimal: .decimalPad
   case .phone: .phonePad
   case .url: .URL
