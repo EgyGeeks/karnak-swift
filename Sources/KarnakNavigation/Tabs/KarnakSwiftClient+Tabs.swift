@@ -5,7 +5,7 @@ extension KarnakSwiftClient {
   /// The tab list this client's bar shows (ADR 0047; `docs/integration.md`, Tabs from the server): the server's tab
   /// list when the project released one this device holds and can show, else `fallback`, the app's own tabs. It is
   /// picked once per process, at the first call, from what is on the device: it reads the disk, never the network.
-  /// Call it before the bar is drawn and give the result to ``KarnakTabStore/init(list:signedIn:)``:
+  /// Call it before the bar is drawn and give the result to ``KarnakTabStore/init(list:)``:
   ///
   /// ```swift
   /// let list = await karnak.tabs(

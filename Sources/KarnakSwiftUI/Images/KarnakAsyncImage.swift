@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The renderer supplies the resolved placeholder and a box sized before image loading.
+/// The renderer supplies the resolved placeholder and a box sized before image loading. The placeholder fills the box
+/// while loading and on failure only.
 struct KarnakAsyncImage: View {
   let url: URL
   var loader: any KarnakImageLoader = URLSessionImageLoader.shared
@@ -14,8 +15,11 @@ struct KarnakAsyncImage: View {
     GeometryReader { geometry in
       let request = ImageViewRequest(
         url: url, boxSize: geometry.size, displayScale: displayScale, contentMode: contentMode)
-      placeholder.overlay {
-        if let image = shownImage(for: request) {
+      let image = shownImage(for: request)
+      // The placeholder is the box while it has no pixels: once an image is drawn, its transparent pixels and a `fit`
+      // image's letterbox bands show what is under the node (`docs/renderer-contract.md`, image; #3583).
+      (image == nil ? placeholder : Color.clear).overlay {
+        if let image {
           Image(decorative: image, scale: displayScale)
             .resizable()
             .keepingAspectRatio(contentMode)

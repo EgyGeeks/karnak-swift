@@ -8,6 +8,8 @@ import UIKit
 struct PresentedSheet: Identifiable {
   let id: String
   let model: ScreenModel
+  /// The sheet's background (``SheetRequest/surface``).
+  var surface: Int32?
 }
 
 /// What one screen instance presents: a toast, a dialog and a sheet, one of each at a time, each
@@ -226,7 +228,7 @@ final class EffectModel: ObservableObject {
       dialog = request
     }
     if sheet == nil, !blockedUntilClear.contains(.sheet), let request = take(\.asSheet) {
-      sheet = PresentedSheet(id: request.id, model: openChild(request))
+      sheet = PresentedSheet(id: request.id, model: openChild(request), surface: request.surface)
     }
     if overlay == nil, !blockedUntilClear.contains(.overlay), let request = take(\.asOverlay) {
       present(request)

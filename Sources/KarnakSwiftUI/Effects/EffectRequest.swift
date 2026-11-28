@@ -1,7 +1,7 @@
 import KarnakCore
 
-/// How a renderer that draws its own chrome (the toast) looks, from the engine's `EffectStyle`.
-/// The system alert and sheet keep the system look.
+/// How a renderer that draws its own chrome (the toast) looks, from the engine's `EffectStyle`. The system alert keeps
+/// the system look; a sheet is painted in the style's surface (``SheetRequest/surface``).
 struct EffectAppearance {
   /// The container's background, as the engine's ARGB.
   let surface: Int32
@@ -40,6 +40,9 @@ struct SheetRequest: Identifiable {
   let generation: Int64
   /// The child instance. The engine closes it; the renderer never does.
   let screen: any ScreenSession
+  /// The sheet's background, the theme's surface as the engine's ARGB (`EffectStyle.surface`), under the home indicator
+  /// too; nil keeps the system's sheet background (tests).
+  var surface: Int32?
 }
 
 /// An overlay the engine asked for (`open_screen` with `presentation` `modal`, `sheet` or
@@ -53,6 +56,9 @@ struct OverlayRequest {
   /// Whether the renderer ends the stack when the overlay goes: a stack the engine scoped to no screen, as a restored
   /// detail pane's is (`KarnakNavigator.restoreOverlay`). The engine closes every other one with its screen.
   var endedByRenderer = false
+  /// The background of a `sheet`, the theme's surface as the engine's ARGB (`EffectStyle.surface`), under the home
+  /// indicator too; nil keeps the system's sheet background.
+  var surface: Int32?
 }
 
 /// The engine asked to move focus to the input `key` (`FocusRequest`).
@@ -95,13 +101,15 @@ extension EffectRequest {
     case let sheet as Sheet:
       self = .sheet(
         SheetRequest(
-          id: sheet.id, generation: sheet.generation, screen: makeSession(sheet.screen)))
+          id: sheet.id, generation: sheet.generation, screen: makeSession(sheet.screen),
+          surface: sheet.style.surface.value))
     case let overlay as Overlay:
       self = .overlay(
         OverlayRequest(
           id: overlay.id, generation: overlay.generation,
           presentation: KarnakPresentation(overlay.stack.presentation),
-          stack: ControllerStack(overlay.stack, session: makeSession)))
+          stack: ControllerStack(overlay.stack, session: makeSession),
+          surface: overlay.style.surface.value))
     case let focus as FocusRequest:
       self = .focus(
         FocusRequestValue(id: focus.id, generation: focus.generation, key: focus.key.value))

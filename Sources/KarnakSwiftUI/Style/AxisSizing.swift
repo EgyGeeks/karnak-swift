@@ -17,6 +17,12 @@ struct AxisSizing: Equatable {
   /// The parent allocated this axis (a weight or `stretch`), so the box takes its proposal.
   var acceptsProposal = false
 
+  /// A `Fixed` size, which a transition moves; 0 for any other sizing, which keeps its mode when set.
+  var animatableSize: CGFloat {
+    get { if case .fixed(let size) = mode { size } else { 0 } }
+    set { if case .fixed = mode { mode = .fixed(newValue) } }
+  }
+
   /// The bounds win over everything, so a minimum that doesn't fit overflows.
   func clamp(_ value: CGFloat) -> CGFloat {
     max(minimum, min(value, maximum))

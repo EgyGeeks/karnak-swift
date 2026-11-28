@@ -59,6 +59,7 @@ private struct EffectsPresentation: ViewModifier {
       ) { presented in
         SheetScreenView(model: presented.model)
           .presentationDragIndicator(.visible)
+          .sheetSurface(presented.surface)
       }
   }
 }

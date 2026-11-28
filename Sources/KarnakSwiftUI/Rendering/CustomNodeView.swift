@@ -15,7 +15,8 @@ struct CustomNodeView: View {
   @Environment(\.karnakActions) private var actions
 
   var body: some View {
-    if let hostView = components.hostView(for: node, sinks: CustomSinks(inputs: inputs, actions: actions)) {
+    let sinks = CustomSinks(inputs: inputs, actions: actions)
+    if let hostView = components.hostView(for: node, sinks: sinks) {
       let styled = hostView.nodeStyle(node, placement: placement)
       // A labelled node reports its box, as ``NodeView`` has every labelled node do.
       if node.semantics.label != nil {

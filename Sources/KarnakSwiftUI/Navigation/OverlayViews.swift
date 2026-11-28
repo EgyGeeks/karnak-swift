@@ -15,6 +15,7 @@ struct OverlayPresentation: View {
       .sheet(item: overlay(.sheet)) { presented in
         ContainedStackView(overlay: presented, fillsSpace: false)
           .presentationDragIndicator(.visible)
+          .sheetSurface(presented.surface)
       }
       .fullScreenCover(item: overlay(.modal)) { presented in
         ContainedStackView(overlay: presented, fillsSpace: true)
@@ -154,6 +155,9 @@ struct OverlayScreenView: View {
         of: model.screenId, error, retry: { model.retry() },
         callSite: nil as ((KarnakScreenError, () -> Void) -> EmptyView)?
       ).compactStateFrame(if: !fillsSpace)
+    case .locked(let reason):
+      views.signIn(of: model.screenId, reason: reason, signIn: { model.askSignIn() })
+        .compactStateFrame(if: !fillsSpace)
     }
   }
 

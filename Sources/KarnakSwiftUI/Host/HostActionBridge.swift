@@ -114,6 +114,12 @@ package final class HostActionBridge {
     guard let request = KarnakNavigation(request) else {
       return report("Karnak: ignored a navigation request of a kind this SDK does not know.")
     }
+    perform(request)
+  }
+
+  /// Answers `request` as a request from the engine is answered, with the hooks given last: for a request that waited
+  /// for its hooks, such as one for a tab that had not appeared yet.
+  package func perform(_ request: KarnakNavigation) {
     if case .back(nil, false, let before?) = request, before == ownEntryId { return }
     if let hook = callbacks.onNavigation {
       hook(request)

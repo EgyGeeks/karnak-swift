@@ -7,7 +7,8 @@ import SwiftUI
 /// container named by the input. Each chip is a button around its label and is the option's touch target; VoiceOver
 /// reads the selected one as selected. Picking an enabled chip sends its value, and takes focus from the other inputs.
 /// Focus moving between chips sends nothing: the group reports focus entering and leaving it. In a `multiple` group (a set's or
-/// a form's) a chip toggles on its own and sends every value selected then, in the options' order.
+/// a form's) a chip toggles on its own and sends every value selected then, in the options' order. While its options
+/// reload they are drawn dimmed and a pick sends nothing; its notice or options error shows under them (``ChoiceStatus``).
 struct ChipGroupView: View {
   let group: ResolvedChipGroup
   let placement: ChildPlacement
@@ -17,12 +18,18 @@ struct ChipGroupView: View {
 
   var body: some View {
     let drawn = restyled(group, for: focusedChip != nil ? [.focused] : [])
+    let status = ChoiceStatus(drawn)
     InputFrame(input: drawn, placement: placement, label: drawn.label, support: drawn.error) {
-      chips(drawn)
-        .partBox(drawn.control)
-        .accessibilityElement(children: .contain)
-        .inputAccessibility(drawn)
+      VStack(alignment: .leading, spacing: 0) {
+        chips(drawn)
+          .busyOptions(status.busy)
+          .partBox(drawn.control)
+        ChoiceStatusView(status: status)
+      }
+      .accessibilityElement(children: .contain)
+      .inputAccessibility(drawn)
     }
+    .postsAnnouncement(status.announcement)
     .onChange(of: focusedChip != nil) { _, isFocused in
       inputs.send(.focusChange(group.key, isFocused))
       if isFocused { focus.moved(to: group.key.value) }
@@ -74,7 +81,7 @@ struct ChipGroupView: View {
 
   private func pick(_ option: ResolvedOption) {
     focus.moved(to: group.key.value)
-    guard group.acceptsEdits, option.enabled else { return }
+    guard group.acceptsEdits, !group.busy, option.enabled else { return }
     if group.multiple {
       let chosen = group.options.filter { $0.value == option.value ? !$0.selected : $0.selected }
       inputs.send(.selectionChange(group.key, chosen.map(\.value)))

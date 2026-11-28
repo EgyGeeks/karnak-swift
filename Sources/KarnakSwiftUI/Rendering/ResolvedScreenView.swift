@@ -100,6 +100,7 @@ struct ResolvedScreenView: View {
     .environment(\.karnakViewport, viewport)
     .environment(\.karnakScreenViewport, viewport)
     .environment(\.layoutDirection, layoutDirection(screen.layoutDirection))
+    .environment(\.karnakScreenLocale, screenLocale(screen.locale))
     .task(id: ObjectIdentifier(screen)) {
       RendererDiagnostics.reportUnsupported(in: screen, to: diagnostics)
     }

@@ -48,9 +48,8 @@ struct MovingPaint: View {
 }
 
 extension ResolvedTransition {
-  /// The transition's timing curve, from the theme's cubic Bézier.
+  /// The transition's timing curve, from the theme's easing.
   var animation: Animation {
-    .timingCurve(
-      easing.x1, easing.y1, easing.x2, easing.y2, duration: Double(durationMillis) / 1000)
+    easingAnimation(easing, seconds: Double(durationMillis) / 1000)
   }
 }

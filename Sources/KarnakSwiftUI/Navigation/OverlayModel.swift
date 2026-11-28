@@ -20,6 +20,8 @@ final class OverlayModel: ObservableObject, Identifiable {
   let id: String
   /// ``KarnakPresentation/sheet``, ``KarnakPresentation/modal`` or ``KarnakPresentation/detail``.
   let presentation: KarnakPresentation
+  /// The background of a sheet (``OverlayRequest/surface``).
+  let surface: Int32?
   @Published private(set) var entries: [OverlayEntry] = []
   /// Called when the stack has no entry left: the overlay is over, however it ended.
   var onEnded: () -> Void = {}
@@ -35,6 +37,7 @@ final class OverlayModel: ObservableObject, Identifiable {
   ) {
     id = request.id
     presentation = request.presentation
+    surface = request.surface
     stack = request.stack
     endedByRenderer = request.endedByRenderer
     self.makeModel = makeModel

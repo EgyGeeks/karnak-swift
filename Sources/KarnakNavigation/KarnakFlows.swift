@@ -23,15 +23,14 @@ import KarnakSwiftUI
 ///
 /// The module also runs links (`docs/integration.md`, Links on iOS): the client then announces
 /// `open_link` too, and ``SwiftUI/View/karnakOnOpenURL(onNotKarnak:onRejected:)`` opens the links
-/// the system gives the app. A table with patterns that need a signed-in user needs
-/// `KarnakFlows(links: KarnakLinkOptions(signedIn: …, onSignInRequired: …))`.
+/// the system gives the app. A link has no sign-in gate of its own: a screen marked
+/// `auth: "required"` gates itself, however it is opened.
 public final class KarnakFlows: KarnakFlowModule, @unchecked Sendable {
   /// The Kotlin module this installs: its snapshot, restore and ownership calls are the module's
   /// (`docs/integration.md`, Process death).
   public let navigationModule: KarnakNavigationModule
 
-  /// Installs flows and links. `links` says who is signed in, for the patterns with
-  /// `auth: "required"`: by default nobody, so such a link is rejected as `sign_in_required`.
+  /// Installs flows and links. `links` gives the app's tabs, for a link that names one.
   public init(links: KarnakLinkOptions = KarnakLinkOptions()) {
     navigationModule = KarnakNavigationModule(linkOptions: links.kotlin)
   }

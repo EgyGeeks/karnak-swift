@@ -103,11 +103,14 @@ struct TextFieldView: View {
   private func nativeField(_ drawn: ResolvedTextField) -> some View {
     if drawn.secure {
       SecureField("", text: $text)
+    } else if drawn.maxLines > 1, #available(iOS 18.0, *) {
+      CaretTextField(text: $text, typedCaret: $typedCaret, caret: caret, axis: .vertical)
+        .lineLimit(Int(drawn.minLines)...Int(drawn.maxLines))
+    } else if #available(iOS 18.0, *) {
+      CaretTextField(text: $text, typedCaret: $typedCaret, caret: caret)
     } else if drawn.maxLines > 1 {
       TextField("", text: $text, axis: .vertical)
         .lineLimit(Int(drawn.minLines)...Int(drawn.maxLines))
-    } else if drawn.mask != nil, #available(iOS 18.0, *) {
-      CaretTextField(text: $text, typedCaret: $typedCaret, caret: caret)
     } else {
       TextField("", text: $text)
     }
@@ -152,11 +155,20 @@ struct TextFieldView: View {
       maxLength: maxLength)
     // A mask's text, or Latin digits for Arabic-Indic ones.
     if edit.text != typed { text = edit.text }
-    if let offset = edit.caret { caret = CaretMove(offset: offset, edit: (caret?.edit ?? 0) + 1) }
-    apply(
-      sync.edited(
-        edit.value, tree: field.value, accepts: field.acceptsEdits,
-        maxLength: field.mask == nil ? maxLength : nil))
+    if let offset = edit.caret { moveCaret(to: offset) }
+    let outcome = sync.edited(
+      edit.value, tree: field.value, accepts: field.acceptsEdits,
+      maxLength: field.mask == nil ? maxLength : nil)
+    // A refused edit writes the earlier text back: the caret stays where the person typed.
+    if case .replace(let restored) = outcome, field.mask == nil, edit.text == typed {
+      moveCaret(
+        to: TextSync.caretAfterRefusal(typed: typed, restored: restored, typedCaret: typedCaret))
+    }
+    apply(outcome)
+  }
+
+  private func moveCaret(to offset: Int) {
+    caret = CaretMove(offset: offset, edit: (caret?.edit ?? 0) + 1)
   }
 
   private func apply(_ outcome: TextSync.Outcome) {

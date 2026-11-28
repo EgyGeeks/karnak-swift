@@ -87,6 +87,28 @@ struct ScreenStateViews {
   }
 }
 
+extension ScreenStateViews {
+  /// The sign-in view of `screenId`: the entry's own, else the default's, else the SDK's placeholder. There is
+  /// no call-site view, and a section draws the placeholder too: a locked section has nothing else to show.
+  @ViewBuilder func signIn(
+    of screenId: String?, reason: String?, signIn: @escaping () -> Void
+  ) -> some View {
+    if let own = registered(of: screenId, reason: reason, signIn: signIn) {
+      own
+    } else {
+      KarnakSignInRequiredView(reason: reason, signIn: signIn)
+    }
+  }
+
+  /// The entry's own sign-in view, else the default's, else `nil`.
+  private func registered(
+    of screenId: String?, reason: String?, signIn: @escaping () -> Void
+  ) -> AnyView? {
+    let entry = registry.entry(for: screenId)?.signInRequired(reason: reason, signIn: signIn)
+    return entry ?? registry.defaultStates()?.signInRequired(reason: reason, signIn: signIn)
+  }
+}
+
 extension EnvironmentValues {
   /// The loading and error views the client's configuration registered.
   @Entry var karnakScreenStates = ScreenStatesRegistry.empty

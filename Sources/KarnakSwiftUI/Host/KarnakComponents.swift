@@ -53,7 +53,9 @@ public struct KarnakCustomNode {
   /// for an event the node doesn't declare, and dropped for a payload over 4 KiB as JSON.
   @MainActor
   public func raise(_ name: String, payload: [String: KarnakJSON] = [:], byUser: Bool = true) {
-    guard let handle = handles[name], let sinks, let typed = KarnakJSON.object(payload).karnakValue() else { return }
+    guard let handle = handles[name], let sinks,
+      let typed = KarnakJSON.object(payload).karnakValue()
+    else { return }
     sinks.actions.event(handle, payload: typed, byUser: byUser)
   }
 }

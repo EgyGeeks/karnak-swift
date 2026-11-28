@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// What a screen shows while it has no content: its loading view, and its error view with a retry. The
-/// app implements it once per screen, or once as the default for every screen without its own, and
-/// registers the type with ``KarnakConfiguration/screenStates(_:)`` (`docs/integration.md`, Loading and
-/// error views).
+/// What a screen shows while it has no content: its loading view, its error view with a retry, and, optionally,
+/// its sign-in view while it needs a signed-in person. The app implements it once per screen, or once as the
+/// default for every screen without its own, and registers the type with ``KarnakConfiguration/screenStates(_:)``
+/// (`docs/integration.md`, Loading and error views).
 ///
 /// ```swift
 /// struct ProductStates: KarnakScreenStates {
@@ -34,6 +34,48 @@ public protocol KarnakScreenStates {
   ///   - kind: Why it couldn't be loaded.
   ///   - retry: Loads the screen again, showing ``loading()`` until it loads or fails again.
   @ViewBuilder func error(kind: KarnakScreenError.Kind, retry: @escaping () -> Void) -> ErrorContent
+
+  /// The view shown while the screen needs a signed-in person.
+  associatedtype SignInRequiredContent: View = KarnakNoSignInView
+
+  /// The sign-in view, shown while the screen needs a signed-in person and the app has said nobody is
+  /// (``KarnakSwiftClient/setSession(signedIn:)``).
+  ///
+  /// Optional: the default answers ``KarnakNoSignInView``, which passes to the next in the order: a screen's
+  /// entry without one uses the default's, and without either the SDK's placeholder shows. Answering
+  /// ``KarnakSignInRequiredView`` yourself draws it for this entry, with your `signIn`. Never show
+  /// `reason` itself to the person: it is a code, for choosing a text of your own.
+  ///
+  /// - Parameters:
+  ///   - reason: The screen's reason code (`authReason`), or `nil` when it has none.
+  ///   - signIn: Asks the app to sign in (``KarnakConfiguration/onSignInRequired``), once per call. The screen
+  ///     loads in place once the app says signed in.
+  @ViewBuilder func signInRequired(reason: String?, signIn: @escaping () -> Void)
+    -> SignInRequiredContent
+}
+
+extension KarnakScreenStates {
+  /// No sign-in view of its own, so the next in the order draws it.
+  public func signInRequired(
+    reason: String?, signIn: @escaping () -> Void
+  ) -> KarnakNoSignInView {
+    KarnakNoSignInView(reason: reason, signIn: signIn)
+  }
+}
+
+/// What ``KarnakScreenStates/signInRequired(reason:signIn:)`` answers when the states have no sign-in view of
+/// their own: the next in the order draws instead. Only the SDK makes one; drawn, it is the SDK's placeholder.
+public struct KarnakNoSignInView: View {
+  private let reason: String?
+  private let signIn: () -> Void
+
+  init(reason: String?, signIn: @escaping () -> Void) {
+    self.reason = reason
+    self.signIn = signIn
+  }
+
+  /// The SDK's placeholder, ``KarnakSignInRequiredView``.
+  public var body: some View { KarnakSignInRequiredView(reason: reason, signIn: signIn) }
 }
 
 /// Where the loading or error view of a screen is drawn.
@@ -101,6 +143,10 @@ extension KarnakConfiguration {
   /// 2. the entry registered for the screen id;
   /// 3. `default`;
   /// 4. the SDK's own: a spinner and a retry button (a section shows nothing).
+  ///
+  /// The sign-in view has no call-site argument: it is the entry's
+  /// ``KarnakScreenStates/signInRequired(reason:signIn:)`` when it has its own, else the default's, else the
+  /// SDK's placeholder (``KarnakSignInRequiredView``), on a section too.
   ///
   /// Registering is optional: a screen without an entry falls back, which matters for screens added
   /// on the server after an app release. A debug client (``debug``) logs once per such screen, and

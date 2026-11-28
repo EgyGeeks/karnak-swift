@@ -33,6 +33,8 @@ struct ScreenPhaseView<Loading: View, Failure: View>: View {
       .background { ScrollProbe { model.gate.scroll = $0 } }
     case .failed(let error):
       views.error(of: screenId, error, retry: { model.retry() }, callSite: failure)
+    case .locked(let reason):
+      views.signIn(of: screenId, reason: reason, signIn: { model.askSignIn() })
     }
   }
 }

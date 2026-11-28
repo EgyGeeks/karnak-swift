@@ -37,6 +37,7 @@ private struct ThemedParagraph: View {
   let fonts: ThemeFontRegistry
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.karnakActions) private var actions
+  @Environment(\.karnakScreenLocale) private var locale
   @State private var watch = ElapsedWatch()
 
   var body: some View {
@@ -60,8 +61,10 @@ private struct ThemedParagraph: View {
     let traits = UITraitCollection(
       preferredContentSizeCategory: UIContentSizeCategory(dynamicTypeSize))
     let styled = StyledParagraph(
-      paragraph, traits: traits, postScriptName: fonts.postScriptName(for:), nowMillis: nowMillis)
+      paragraph, traits: traits, postScriptName: fonts.postScriptName(for:), nowMillis: nowMillis,
+      locale: locale)
     return text(styled, layer: .base)
+      .modifier(WrittenText(written: paragraph.isRecased ? paragraph.written(at: nowMillis) : nil))
       .overlay { gradientLayers(nowMillis: nowMillis, traits: traits) }
       .tint(styled.linkColor)
       .environment(
@@ -84,7 +87,7 @@ private struct ThemedParagraph: View {
         ForEach(painted, id: \.self) { index in
           let styled = StyledParagraph(
             paragraph, traits: traits, postScriptName: fonts.postScriptName(for:),
-            nowMillis: nowMillis, layer: .gradientRun(index))
+            nowMillis: nowMillis, layer: .gradientRun(index), locale: locale)
           if let paint = paragraph.runs[index].paint {
             PaintedFill(from: nil, to: .of(paint), shape: NodeShape(radius: 0))
               .mask { text(styled, layer: .gradientRun(index)) }

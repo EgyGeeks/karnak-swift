@@ -6,7 +6,8 @@ import SwiftUI
 /// a button, the indicator box (with its check mark while selected) then the label, 12 dp apart, and is the option's
 /// touch target; VoiceOver reads each as a toggle with its label and, while picked, as selected. Toggling an enabled
 /// option sends every value selected then, in the options' order, and takes focus from the other inputs. Focus moving
-/// between options sends nothing: the group reports focus entering and leaving it.
+/// between options sends nothing: the group reports focus entering and leaving it. While its options reload they are
+/// drawn dimmed and a toggle sends nothing; its notice or options error shows under them (``ChoiceStatus``).
 struct CheckboxGroupView: View {
   let group: ResolvedCheckboxGroup
   let placement: ChildPlacement
@@ -16,12 +17,18 @@ struct CheckboxGroupView: View {
 
   var body: some View {
     let drawn = restyled(group, for: focusedOption != nil ? [.focused] : [])
+    let status = ChoiceStatus(drawn)
     InputFrame(input: drawn, placement: placement, label: drawn.label, support: drawn.error) {
-      options(drawn)
-        .partBox(drawn.control)
-        .accessibilityElement(children: .contain)
-        .inputAccessibility(drawn)
+      VStack(alignment: .leading, spacing: 0) {
+        options(drawn)
+          .busyOptions(status.busy)
+          .partBox(drawn.control)
+        ChoiceStatusView(status: status)
+      }
+      .accessibilityElement(children: .contain)
+      .inputAccessibility(drawn)
     }
+    .postsAnnouncement(status.announcement)
     .onChange(of: focusedOption != nil) { _, isFocused in
       inputs.send(.focusChange(group.key, isFocused))
       if isFocused { focus.moved(to: group.key.value) }
@@ -52,7 +59,7 @@ struct CheckboxGroupView: View {
 
   private func toggle(_ option: ResolvedOption) {
     focus.moved(to: group.key.value)
-    guard group.acceptsEdits, option.enabled else { return }
+    guard group.acceptsEdits, !group.busy, option.enabled else { return }
     let chosen = group.options.filter { $0.value == option.value ? !$0.selected : $0.selected }
     inputs.send(.selectionChange(group.key, chosen.map(\.value)))
   }

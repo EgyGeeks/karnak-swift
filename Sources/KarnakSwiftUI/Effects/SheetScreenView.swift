@@ -36,6 +36,9 @@ struct SheetScreenView: View {
         of: model.screenId, error, retry: { model.retry() },
         callSite: nil as ((KarnakScreenError, () -> Void) -> EmptyView)?
       ).compactStateFrame()
+    case .locked(let reason):
+      views.signIn(of: model.screenId, reason: reason, signIn: { model.askSignIn() })
+        .compactStateFrame()
     }
   }
 

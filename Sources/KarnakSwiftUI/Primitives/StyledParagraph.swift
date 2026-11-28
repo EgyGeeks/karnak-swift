@@ -36,7 +36,7 @@ struct StyledParagraph {
   init(
     _ paragraph: ResolvedParagraph, traits: UITraitCollection,
     postScriptName: (ResolvedFontFace) -> String? = { _ in nil },
-    nowMillis: Int64? = nil, layer: TextLayer = .base
+    nowMillis: Int64? = nil, layer: TextLayer = .base, locale: Locale = .current
   ) {
     func name(_ font: ResolvedFont) -> String? { font.face.flatMap(postScriptName) }
     var text = AttributedString()
@@ -46,7 +46,8 @@ struct StyledParagraph {
     var boxes: [RunBox?] = []
     for (index, run) in paragraph.runs.enumerated() {
       let size = textPoints(sp: run.font.size, traits: traits)
-      var part = AttributedString(Self.text(of: run, at: nowMillis))
+      var part = AttributedString(
+        Self.text(of: run, at: nowMillis).cased(run.font.textTransform, locale: locale))
       part.font = resolvedFont(run.font, scaledPoints: size, postScriptName: name(run.font))
       part.foregroundColor = layer.color(of: run, at: index)
       part.tracking = tracking(em: run.font.letterSpacing, fontPoints: size)
@@ -120,7 +121,7 @@ enum TextLayer: Equatable {
 
 /// The height of one line of the font named `postScriptName` (the system font when nil or
 /// unknown) at `points` without extra spacing.
-private func naturalLineHeight(_ postScriptName: String?, _ points: CGFloat) -> CGFloat {
+func naturalLineHeight(_ postScriptName: String?, _ points: CGFloat) -> CGFloat {
   let named = postScriptName.flatMap { UIFont(name: $0, size: points) }
   return (named ?? .systemFont(ofSize: points)).lineHeight
 }

@@ -6,8 +6,8 @@ import KarnakCore
 /// params as `[String: Any]`.
 ///
 /// Construction only stores the configuration: no I/O, no threads and no calls to the header
-/// provider. The first ``warmUp(prefetch:sources:)``, ``prefetch(_:params:sources:)``, ``setUser(id:attributes:)``,
-/// ``clearUser()`` or screen builds the rest, and each part does its I/O off the main thread.
+/// provider. The first ``warmUp(prefetch:sources:)``, ``prefetch(_:params:sources:)``, ``setSession(signedIn:)``,
+/// ``setUser(id:attributes:)`` or screen builds the rest, and each part does its I/O off the main thread.
 ///
 /// ```swift
 /// let karnak = try KarnakSwiftClient(configuration)
@@ -22,7 +22,6 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   private let log: @Sendable (String) -> Void
   let resourcesCore: ResourcesCore
   package let stacks = HostStackRegistry()
-  private let signedInState = SignedInState()
   /// The loading and error views the app registered with ``KarnakConfiguration/screenStates(_:)``.
   let screenStates: ScreenStatesRegistry
   /// The custom components the app registered with ``KarnakConfiguration/components(_:)``.
@@ -104,16 +103,11 @@ public final class KarnakSwiftClient: @unchecked Sendable {
       log: log)
     for (name, value) in configuration.headers { config.setHeader(name: name, value: value) }
     configuration.headerProvider.map { provider in config.addHeaderProvider(provider: provider) }
-    configuration.onSignInRequired.map { hook in
-      config.onSignInRequired = { request in
-        let wrapped = KarnakSignInRequest(request)
-        Task { @MainActor in hook(wrapped) }
-      }
-    }
+    config.register(signIn: configuration.onSignInRequired)
+    config.refreshToken = configuration.refreshToken.map(refreshTokenBridge)
     config.clientEventsEnabled = configuration.clientEvents.enabled
     config.clientEventsSampleRate = configuration.clientEvents.sampleRate
     config.listener = configuration.listener.map(ListenerBridge.init)
-    config.contextProvider = signedInState
     for module in configuration.modules { module.install(into: config) }
     flowModule =
       configuration.modules.lazy.compactMap { ($0 as? KarnakFlowModule)?.navigationModule }
@@ -159,17 +153,24 @@ public final class KarnakSwiftClient: @unchecked Sendable {
     }
   }
 
-  /// Sets the signed-in user, sent with every request for targeting. Another id clears the
-  /// previous user's cached screens. Misuse, such as a blank id, throws in debug.
-  public func setUser(id: String, attributes: [String: Any] = [:]) throws {
-    try client.setUser(id: id, attributeValues: converter.convert(attributes))
+  /// Says whether the person is signed in, the one write of the session (`docs/integration.md`,
+  /// Sign-in gate): `true` for a real account and `false` for a guest or nobody. Call it at start,
+  /// then `true` on every sign-in and `false` on every sign-out; an account switch is a sign-out and
+  /// then a sign-in. Until the first call the sign-in gate treats the person as signed out. A
+  /// sign-out clears everything personal, a sign-in clears nothing, and each screen that needs
+  /// sign-in loads again from the network on every change; a locked screen loads in place once this
+  /// says signed in.
+  public func setSession(signedIn: Bool) {
+    client.setSession(signedIn: signedIn)
   }
 
-  /// Says whether the user is signed in, for the `context.signedIn` binding (`docs/protocol.md`,
-  /// Context): `true`, `false`, or `nil` when the app does not say. A change reloads the sources
-  /// of the open screens that read it. It carries no credential, and is separate from ``setUser(id:attributes:)``.
-  public func setSignedIn(_ signedIn: Bool?) {
-    signedInState.set(value: signedIn.map { KotlinBoolean(bool: $0) })
+  /// Sets the user the server targets (`X-Karnak-User`): `id` or `nil`, and its targeting
+  /// `attributes`. It clears nothing and says nothing about the session: call it just before
+  /// each ``setSession(signedIn:)`` with `true`, so the screens the sign-in loads ask as that
+  /// user, since a sign-out forgets it.
+  /// Misuse, such as a blank id, throws in debug.
+  public func setUser(id: String?, attributes: [String: Any] = [:]) throws {
+    try client.setUser(id: id, attributeValues: converter.convert(attributes))
   }
 
   /// Tells the client the language its ``KarnakConfiguration/acceptLanguageProvider`` answers changed: every open
@@ -198,11 +199,6 @@ public final class KarnakSwiftClient: @unchecked Sendable {
   /// first screen does.
   public func plannedDestinations(_ event: String) -> Set<String> {
     client.plannedDestinations(event: event)
-  }
-
-  /// Signs the user out: clears their cached screens and stops sending them.
-  public func clearUser() {
-    client.clearUser()
   }
 
   /// `seconds` as the whole milliseconds the Kotlin client takes. A wait that is not a finite number
@@ -333,12 +329,23 @@ extension KarnakSwiftClient {
     client.tabBarStyle(form: form, mode: dark ? .dark : .light, rtl: rtl, icons: icons)
   }
 
-  /// The revisions of the theme the client holds: the one now, then each time it holds another
+  /// The background of a sheet the SDK presents outside any screen, such as a tab bar action item's (ADR 0047, D10):
+  /// the theme's surface as the engine's ARGB, from the theme the client holds or the SDK's baseline, with no I/O.
+  package func overlaySurface(dark: Bool) -> Int32 {
+    client.overlayStyle(mode: dark ? .dark : .light).surface.value
+  }
+
+  /// The project's theme the client holds (`nil` while it holds none): the one now, then each time it holds another
   /// (from ``loadTheme()`` or any screen's load), on the main thread.
-  package func themeRevisions() -> AsyncStream<Int32> {
+  package func themes() -> AsyncStream<ScreenTheme?> {
     AsyncStream { continuation in
       let handle = CancelHandle()
-      handle.set(client.observeTheme { continuation.yield($0.int32Value) })
+      handle.set(
+        client.observeTheme { held in
+          // A Kotlin ScreenTheme is immutable once made: handing it to the stream's reader shares nothing mutable.
+          nonisolated(unsafe) let theme = held
+          continuation.yield(theme)
+        })
       continuation.onTermination = { _ in handle.cancel() }
     }
   }
@@ -352,6 +359,17 @@ extension KarnakSwiftClient {
       }
     } onCancel: {
       handle.cancel()
+    }
+  }
+}
+
+extension KarnakClientConfig {
+  /// Calls the app's `onSignInRequired`, `hook`, on the main actor with each request wrapped; `nil` sets none.
+  fileprivate func register(signIn hook: (@MainActor @Sendable (KarnakSignInRequest) -> Void)?) {
+    guard let hook else { return }
+    onSignInRequired = { request in
+      let wrapped = KarnakSignInRequest(request)
+      Task { @MainActor in hook(wrapped) }
     }
   }
 }

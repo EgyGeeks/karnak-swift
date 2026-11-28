@@ -44,7 +44,7 @@ struct DrawValues {
     let period = timing.alternate ? duration * 2 : duration
     let phase = ((nowMillis % period) + period) % period
     let leg = phase < duration ? phase : period - phase
-    return CubicBezier(timing.easing).value(at: Double(leg) / Double(duration))
+    return easedValue(timing.easing, at: Double(leg) / Double(duration))
   }
 }
 
@@ -56,7 +56,7 @@ struct CubicBezier {
   let x2: Double
   let y2: Double
 
-  init(_ easing: ResolvedEasing) {
+  init(_ easing: ResolvedEasingBezier) {
     x1 = easing.x1
     y1 = easing.y1
     x2 = easing.x2

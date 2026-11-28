@@ -50,7 +50,7 @@ public final class KarnakScreenCustomActions {
   /// Registers `handler` for `type` with the payload read by `decoder` first: a payload the decoder cannot read ends
   /// the action as `cancelled` and `handler` never runs.
   public func customActionWithOutcome<T>(
-    _ type: String, decoder: @escaping @Sendable (KarnakPayload) throws -> T,
+    _ type: String, decoder: @escaping @MainActor (KarnakPayload) throws -> T,
     _ handler: @escaping @MainActor (T) async throws -> KarnakActionOutcome
   ) {
     customActionWithOutcome(type) { payload in try await handler(try decoder(payload)) }
@@ -59,7 +59,7 @@ public final class KarnakScreenCustomActions {
   /// Registers `handler` for `type` with the payload read by `decoder` first, as generated code does: a payload the
   /// decoder cannot read drops the action and `handler` never runs.
   public func customAction<T>(
-    _ type: String, decoder: @escaping @Sendable (KarnakPayload) throws -> T,
+    _ type: String, decoder: @escaping @MainActor (KarnakPayload) throws -> T,
     _ handler: @escaping @MainActor (T) -> Void
   ) {
     customAction(type) { payload in handler(try decoder(payload)) }
@@ -91,15 +91,17 @@ extension KarnakConfiguration {
 
   /// Registers `handler` for `type` app-wide with the payload read by `decoder` first, as generated code does.
   public mutating func customActionWithOutcome<T>(
-    _ type: String, decoder: @escaping @Sendable (KarnakPayload) throws -> T,
+    _ type: String, decoder: @escaping @MainActor (KarnakPayload) throws -> T,
     _ handler: @escaping @MainActor (T) async throws -> KarnakActionOutcome
   ) {
     customActionWithOutcome(type) { payload in try await handler(try decoder(payload)) }
   }
 
   /// Registers `handler` for `type` app-wide with the payload read by `decoder` first, as generated code does.
+  /// Both run on the main actor, so a payload type an app isolates to it by default (`-default-isolation MainActor`)
+  /// decodes without a warning.
   public mutating func customAction<T>(
-    _ type: String, decoder: @escaping @Sendable (KarnakPayload) throws -> T,
+    _ type: String, decoder: @escaping @MainActor (KarnakPayload) throws -> T,
     _ handler: @escaping @MainActor (T) -> Void
   ) {
     customAction(type) { payload in handler(try decoder(payload)) }

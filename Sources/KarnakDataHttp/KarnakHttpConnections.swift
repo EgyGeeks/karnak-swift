@@ -39,13 +39,14 @@ public struct KarnakHttpConnections: KarnakClientModule {
     }
     kotlin.isInternal = connection.isInternal
     kotlin.isSecret = connection.isSecret
+    kotlin.isPublic = connection.isPublic
     let enabled = connection.isEnabled
     kotlin.isEnabled = { KotlinBoolean(bool: enabled()) }
     connection.maxInFlight.map { kotlin.maxInFlight = Int32($0) }
     connection.timeoutMillis.map { kotlin.timeoutMillis = $0 }
     connection.offlineStaleMillis.map { kotlin.offlineStaleMillis = $0 }
     connection.headerProvider.map { provider in kotlin.addHeaderProvider(provider: provider) }
-    connection.onUnauthorized.map { hook in kotlin.setOnUnauthorized(hook: unauthorizedHook(hook)) }
+    connection.refreshToken.map { hook in kotlin.setRefreshToken(hook: refreshTokenBridge(hook)) }
     for sign in connection.interceptors {
       kotlin.addInterceptor(interceptor: KarnakHttpRequest.bridge(sign))
     }

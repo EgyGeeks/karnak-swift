@@ -5,16 +5,14 @@ import KarnakCore
 public enum KarnakLinkResult: Equatable, Sendable {
   /// The URI matched a pattern with valid params and its target was handed to the host's hooks
   /// (a screen or a flow on the host's stack, a native route, or a static URL through
-  /// `onOpenUrl`), or, for an `auth: "required"` pattern with nobody signed in, to the app's
-  /// sign-in: it opens when ``KarnakLinkContinuation/resume()`` is called. `opened` means the
-  /// target was handed over, not that something is on screen.
+  /// `onOpenUrl`). `opened` means the target was handed over, not that something is on screen: a
+  /// screen marked `auth: "required"` shows its sign-in placeholder to someone signed out.
   case opened
   /// The URI is not one the link table owns, or no pattern has its shape: pass it to your own
   /// router.
   case notKarnak
   /// The URI must not be opened and must not be passed on: it is ours but unsafe or malformed,
-  /// it matched a pattern's shape and failed its params, or it needs a signed-in user and the
-  /// app gave no way to sign in (`reason` is `sign_in_required`).
+  /// or it matched a pattern's shape and failed its params.
   ///
   /// - Parameters:
   ///   - reason: The wire name of the reason, such as `encoded_slash` or `param_invalid`.
@@ -35,68 +33,19 @@ extension KarnakLinkResult {
   }
 }
 
-/// The app's side of the links auth gate (`docs/links.md`, Gates). The gate is user experience,
-/// not authorisation: the target screen's own requests still carry the user's credentials to
-/// your backend.
+/// The app's options for links (`docs/links.md`). A link opens for everyone: a screen that needs a
+/// signed-in user is marked `auth: "required"` and gates itself, whichever way it was opened.
 public struct KarnakLinkOptions: Sendable {
-  /// Whether a user is signed in now. A pattern with `auth: "required"` opens only when this is
-  /// true. Read each time a link needs it, on any thread; nobody is signed in by default.
-  public var signedIn: @Sendable () -> Bool
-  /// Called, on the main thread, when a link needs a signed-in user and ``signedIn`` is false.
-  /// Show your sign-in and call ``KarnakLinkContinuation/resume()`` once the user is signed in, or
-  /// ``KarnakLinkContinuation/cancel()`` when they gave up. Nil, the default, rejects such a link
-  /// as `sign_in_required`.
-  public var onSignInRequired: (@MainActor @Sendable (KarnakLinkContinuation) -> Void)?
   /// The app's tabs, when it has bottom navigation (`docs/integration.md`, Bottom navigation): a
-  /// link whose pattern names a tab shows that tab popped to its root and opens there, and one
-  /// to a sign-in tab passes the auth gate first. Give it `KarnakTabStore.links`. Nil, the
-  /// default, opens every link where it came from.
+  /// link whose pattern names a tab shows that tab popped to its root and opens there. Give it
+  /// `KarnakTabStore.links`. Nil, the default, opens every link where it came from.
   public nonisolated(unsafe) var tabs: (any LinkTabs)?
 
   /// Creates the options.
-  public init(
-    signedIn: @escaping @Sendable () -> Bool = { false },
-    onSignInRequired: (@MainActor @Sendable (KarnakLinkContinuation) -> Void)? = nil,
-    tabs: (any LinkTabs)? = nil
-  ) {
-    self.signedIn = signedIn
-    self.onSignInRequired = onSignInRequired
+  public init(tabs: (any LinkTabs)? = nil) {
     self.tabs = tabs
   }
 
   /// The Kotlin options these are.
-  var kotlin: LinkOptions {
-    let signedIn = signedIn
-    guard let onSignInRequired else {
-      return LinkOptions(
-        signedIn: { KotlinBoolean(bool: signedIn()) }, onSignInRequired: nil, tabs: tabs)
-    }
-    return LinkOptions(
-      signedIn: { KotlinBoolean(bool: signedIn()) },
-      onSignInRequired: { continuation in
-        // The engine may call from its own dispatcher: the app's sign-in is main-thread work.
-        nonisolated(unsafe) let waiting = continuation
-        Task { @MainActor in onSignInRequired(KarnakLinkContinuation(waiting)) }
-      },
-      tabs: tabs)
-  }
-}
-
-/// A link that waits for the user to sign in. ``resume()`` opens it once, if
-/// ``KarnakLinkOptions/signedIn`` is true by then; ``cancel()`` drops it. Whichever comes first
-/// decides and later calls do nothing, so a sign-in screen may call either without tracking it.
-@MainActor
-public final class KarnakLinkContinuation {
-  private let continuation: LinkContinuation
-
-  init(_ continuation: LinkContinuation) {
-    self.continuation = continuation
-  }
-
-  /// The user signed in: opens the link, unless it was resumed or cancelled already or nobody is
-  /// signed in.
-  public func resume() { continuation.resume() }
-
-  /// The user did not sign in: the link is dropped.
-  public func cancel() { continuation.cancel() }
+  var kotlin: LinkOptions { LinkOptions(tabs: tabs) }
 }

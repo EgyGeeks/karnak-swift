@@ -32,6 +32,9 @@ protocol ScreenSession: AnyObject {
   func observe(_ listener: @escaping (ScreenState) -> Void) -> () -> Void
   /// Loads the screen again, as a retry does.
   func refresh()
+  /// The sign-in placeholder's button of a locked screen was pressed: asks the app to sign in again
+  /// (`ScreenController.askSignIn`).
+  func askSignIn()
   /// Resolves the current content again for `environment`.
   func setEnvironment(_ environment: ScreenEnvironment)
   /// Reports that the node or link run with `handle` was activated.
@@ -99,6 +102,8 @@ extension ScreenSession {
   func saveState() -> String? { nil }
   func restoreState(_ saved: String) {}
   func floatingDismissed(_ key: String, _ reason: FloatingDismissReason) {}
+  // Instances that never lock (fakes, previews) ask nothing.
+  func askSignIn() {}
   // Instances without data boundaries (fakes, previews) start no sources.
   func near(_ handle: ActionHandle) {}
 
@@ -239,6 +244,10 @@ final class ControllerSession: ScreenSession {
 
   func refresh() {
     controller.refresh()
+  }
+
+  func askSignIn() {
+    controller.askSignIn()
   }
 
   func setEnvironment(_ environment: ScreenEnvironment) {

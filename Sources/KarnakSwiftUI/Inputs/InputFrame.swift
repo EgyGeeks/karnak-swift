@@ -49,9 +49,11 @@ extension ResolvedInput {
   /// The accessible name: `semantics.label`, which the engine sets from the label when the node has none of its own.
   var accessibleName: String { semantics.label ?? label?.words ?? "" }
 
-  /// What VoiceOver reads after the name and value: the error while there is one, else a text field's helper.
+  /// What VoiceOver reads after the name and value: the error while there is one, else a text field's helper, else
+  /// the notice a select shows in its box ("Choose City first"; a group's notice is its own element).
   var accessibleHint: String {
-    (error ?? (self as? ResolvedTextField)?.helper)?.words ?? ""
+    (error ?? (self as? ResolvedTextField)?.helper ?? (self as? ResolvedSelect)?.notice)?.words
+      ?? ""
   }
 
   /// Whether the person can change the value now: enabled and not read-only (`readOnly` also covers a submission in

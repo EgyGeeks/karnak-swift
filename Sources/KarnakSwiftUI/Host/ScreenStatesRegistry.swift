@@ -6,10 +6,21 @@ import SwiftUI
 struct AnyScreenStates {
   private let makeLoading: () -> AnyView
   private let makeError: (KarnakScreenError.Kind, @escaping () -> Void) -> AnyView
+  private let makeSignIn: ((String?, @escaping () -> Void) -> AnyView)?
 
   init<States: KarnakScreenStates>(_ states: States) {
     makeLoading = { AnyView(states.loading()) }
     makeError = { kind, retry in AnyView(states.error(kind: kind, retry: retry)) }
+    // The protocol's default answers `KarnakNoSignInView`: no sign-in view of the states' own.
+    makeSignIn =
+      States.SignInRequiredContent.self == KarnakNoSignInView.self
+      ? nil
+      : { reason, signIn in AnyView(states.signInRequired(reason: reason, signIn: signIn)) }
+  }
+
+  /// The states' own sign-in view, or `nil` when they have none and the next in the order draws it.
+  func signInRequired(reason: String?, signIn: @escaping () -> Void) -> AnyView? {
+    makeSignIn?(reason, signIn)
   }
 
   func loading() -> AnyView { makeLoading() }

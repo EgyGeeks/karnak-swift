@@ -82,7 +82,8 @@ extension KarnakClientConfig {
     consent: ((String) -> Bool)?,
     log: (String) -> Void
   ) {
-    var bridges: [String: (KarnakCore.KarnakDestinationEvent) -> String?] = [:]
+    // Kotlin reads each value as an Objective-C block: a plain Swift closure in a dictionary bridges boxed, not as one.
+    var bridges: [String: @convention(block) (KarnakCore.KarnakDestinationEvent) -> String?] = [:]
     for (key, destination) in destinations {
       guard bridges[key] == nil else {
         log("Karnak: the analytics destination '\(key)' is registered twice; the first is used.")

@@ -64,6 +64,12 @@ public struct KarnakHttpConnection: Sendable {
   /// Marks an app-wide key rather than the user's token: a secret connection is never executed on
   /// the device and its sources are skipped.
   public var isSecret = false
+  /// Whether the connection's answers are no one's: a catalogue, a price list, the same for every person. A public
+  /// connection's stored answers are kept apart from the person's, and a sign-out, an account switch or a change of
+  /// the user id never clears them. Default `false`: every connection is treated as personal, since an endpoint that
+  /// reads a cookie or personalises its answer looks public to the SDK. A public connection that sends credentials
+  /// (``headerProvider``, ``refreshToken``) is logged once in debug.
+  public var isPublic = false
   /// Whether sources may run now, read for every request: switch the connection off from your own
   /// remote config. Default: always on.
   public var isEnabled: @Sendable () -> Bool = { true }
@@ -75,12 +81,14 @@ public struct KarnakHttpConnection: Sendable {
   /// on what an interceptor returns, so it cannot move a request to another host or path, or
   /// change its method.
   public var interceptors: [@Sendable (KarnakHttpRequest) -> KarnakHttpRequest] = []
-  /// What a `401` does (ADR 0015 D12.5): refresh the person's credentials and return whether you got new ones. It
-  /// runs once at a time for this connection (requests that get a `401` together share one run); with `true` the
-  /// request is sent once more and ``headerProvider`` runs again. A second `401`, `false` or `nil` fails the source,
-  /// and the client's `onSignInRequired` is then called at most once per account. A post's write is retried the same
-  /// way, with the same `Idempotency-Key`. Default: none.
-  public var onUnauthorized: (@Sendable () async -> Bool)?
+  /// What a `401` does: refresh the person's credentials and return whether you got new ones. It runs once at a time
+  /// for this connection (requests that get a `401` together share one run); with `true` the request is sent once
+  /// more and ``headerProvider`` runs again. A second `401`, `false`, or no answer before the request's deadline fails
+  /// the source; the refresh goes on for the requests still waiting. A final `401` while the person is signed in calls
+  /// the client's `onSignInRequired` (at most once per session change); signed out, it calls nothing. A post's write
+  /// is retried the same way, with the same `Idempotency-Key`. `nil`, the default, uses the client's
+  /// ``KarnakConfiguration/refreshToken`` when ``headerProvider`` is set.
+  public var refreshToken: (@Sendable () async -> Bool)?
   /// The most requests in flight at once, between 1 and 32. `nil` keeps the default, 4.
   public var maxInFlight: Int?
   /// The deadline of one request in milliseconds. `nil` keeps the default, 4000.

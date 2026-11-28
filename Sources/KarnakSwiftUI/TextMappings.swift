@@ -35,7 +35,13 @@ func resolvedFont(scaledPoints: CGFloat, weight: Int32, italic: Bool) -> Font {
 /// else the system font at the same size and weight (`docs/theme.md`, Fonts: never invisible).
 /// A registered face is one file, so the requested weight and italic are applied only where
 /// the face doesn't already have them.
+/// A style with `tabularFigures` draws its digits at one width (`Font.monospacedDigit()`, OpenType `tnum`).
 func resolvedFont(_ font: ResolvedFont, scaledPoints: CGFloat, postScriptName: String?) -> Font {
+  let drawn = faceOf(font, scaledPoints: scaledPoints, postScriptName: postScriptName)
+  return font.tabularFigures ? drawn.monospacedDigit() : drawn
+}
+
+private func faceOf(_ font: ResolvedFont, scaledPoints: CGFloat, postScriptName: String?) -> Font {
   guard let name = postScriptName, let face = font.face else {
     return resolvedFont(scaledPoints: scaledPoints, weight: font.weight, italic: font.italic)
   }

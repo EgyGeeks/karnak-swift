@@ -14,6 +14,9 @@ package final class ShellOverlays: ObservableObject {
   private var open: TabOverlay?
   /// The factory of the models that follow each entry's screen, with the host's hooks and environment.
   fileprivate let screens = ScreenModel()
+  /// The background of an open `sheet` for the color scheme (dark when true): the theme's surface as the engine's ARGB.
+  /// The tab integration sets it from its client; nil, or a nil answer, keeps the system's sheet background.
+  package var surface: (@MainActor (_ dark: Bool) -> Int32?)?
 
   package init() {}
 
@@ -82,6 +85,7 @@ private struct ShellOverlayPresenter: ViewModifier {
       .sheet(item: overlay(.sheet)) { presented in
         ContainedStackView(overlay: presented, fillsSpace: false)
           .presentationDragIndicator(.visible)
+          .sheetSurface(overlays.surface?(colorScheme == .dark))
       }
       .fullScreenCover(item: overlay(.modal)) { presented in
         ContainedStackView(overlay: presented, fillsSpace: true)

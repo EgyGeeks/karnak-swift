@@ -5,18 +5,23 @@ import SwiftUI
 
 /// Tabs with a back stack each (ADR 0045; `docs/integration.md`, Bottom navigation): one Karnak host
 /// stack per tab, kept here, above the `TabView`, because `TabView` builds its tabs lazily, and the
-/// tab rules of the engine's `KarnakTabs` for selecting, reselecting, back and sign-out.
+/// tab rules of the engine's `KarnakTabs` for selecting, reselecting, back and links.
 ///
 /// ``KarnakTabView`` draws it. An app with its own `TabView` binds its selection to ``selection``
 /// and puts ``SwiftUI/View/karnakTab(_:of:)`` on each tab's root view, inside that tab's
-/// `NavigationStack`.
+/// `NavigationStack`; one that owns a path per tab gives it with ``SwiftUI/View/karnakTab(_:of:path:)``, and the
+/// tab rules read and pop that path instead of the tab's host stack.
+///
+/// The store keeps the hooks each tab appeared under: a link that names a tab, and an action item's `open_screen`,
+/// run on that tab's own `.karnakHost` hooks (its `onNavigation` when it has one). A link to a tab that has not
+/// appeared yet selects it, and its requests wait until it appears.
 ///
 /// Back never changes the tab on iOS (`KarnakTabBack.stayInTab`): the back button and the edge
 /// swipe pop within the tab.
 ///
 /// Made from a ``KarnakTabList`` (`karnak.tabs(fallback:)`, ADR 0047), it shows the server's tab list: an action item
 /// (`KarnakTab.isAction`) is drawn like a tab and has no stack, and a tap on it asks ``shouldSelect``, then runs its
-/// `open_screen` on the selected tab's stack; the selection stays.
+/// `open_screen` on the selected tab's hooks; the selection stays.
 @MainActor
 public final class KarnakTabStore: ObservableObject {
   /// The tabs, in the bar's order, action items among them.
@@ -31,9 +36,6 @@ public final class KarnakTabStore: ObservableObject {
   public let searchTab: String?
   /// Called when the selected tab was selected again at its root: scroll its root screen to the top.
   public var onScrollToTop: (String) -> Void = { _ in }
-  /// Called when the user selected a tab that needs a signed-in user and nobody is signed in: show
-  /// the sign-in, then call ``select(_:)`` again.
-  public var onSignInNeeded: (String) -> Void = { _ in }
   /// Asked on each tap on a tab (``selection``), before the tab rules: `false` leaves the bar as it was, for an item
   /// that acts instead of showing a tab, such as a "+" that presents the app's sheet. The default lets every tap
   /// through. ``select(_:)`` and links don't ask it.
@@ -45,10 +47,16 @@ public final class KarnakTabStore: ObservableObject {
 
   private let stacks: [String: KarnakHostStack]
   private let model: KarnakTabs
-  private weak var opener: (any HostStackOpener)?
-  private var callbacks: KarnakHostCallbacks?
+  /// What each tab appeared under, by tab: a link or an action item runs on the hooks of the tab it opens on.
+  private var hosts: [String: TabHost] = [:]
+  /// The tab that appeared last: its opener reports, and its hooks stand in for those of a tab not yet appeared.
+  private var lastTab: String?
+  /// What waits for the tabs that have not appeared yet, by tab.
+  private var waiting: [String: PendingTab] = [:]
   private var bridges: [String: HostActionBridge] = [:]
   private var restored = false
+  /// The opener of the tab that appeared last.
+  private var opener: (any HostStackOpener)? { lastTab.flatMap { hosts[$0]?.opener } }
   /// The navigation module of the client the tabs appeared under: it runs an action item's `open_screen`.
   private var module: KarnakNavigationModule?
   /// The `modal` or `sheet` an action item opened over the shell, which ``KarnakTabView`` presents.
@@ -56,29 +64,26 @@ public final class KarnakTabStore: ObservableObject {
 
   /// - Parameters:
   ///   - tabs: The tabs, in the bar's order: at least one, with unique ids.
-  ///   - startTab: The tab shown first, the first one when nil; it must not need a sign-in.
-  ///   - signedIn: Whether a user is signed in now: the same function as the links' `signedIn`.
-  public convenience init(
-    tabs: [KarnakTab], startTab: String? = nil, signedIn: @escaping () -> Bool = { true }
-  ) {
-    self.init(tabs: tabs, startTab: startTab, signedIn: signedIn, makeStack: { KarnakHostStack() })
+  ///   - startTab: The tab shown first, the first one when nil; it must not be an action item. Every tab opens for
+  ///     everyone: a root screen marked `auth: "required"` shows its sign-in placeholder to someone signed out.
+  public convenience init(tabs: [KarnakTab], startTab: String? = nil) {
+    self.init(tabs: tabs, startTab: startTab, makeStack: { KarnakHostStack() })
   }
 
   /// The tabs of `list`, the tab list `karnak.tabs(fallback:)` picked at the cold start (ADR 0047): the server's, with
   /// its action items and its revision, or the app's own.
   ///
   /// - Parameters:
-  ///   - list: The tabs, the one shown first and the revision.
-  ///   - signedIn: Whether a user is signed in now: the same function as the links' `signedIn`.
-  public convenience init(list: KarnakTabList, signedIn: @escaping () -> Bool = { true }) {
+  /// - Parameter list: The tabs, the one shown first and the revision.
+  public convenience init(list: KarnakTabList) {
     self.init(
-      tabs: list.tabs, startTab: list.startTab, revision: list.revision, signedIn: signedIn,
+      tabs: list.tabs, startTab: list.startTab, revision: list.revision,
       makeStack: { KarnakHostStack() })
   }
 
   /// Tabs whose stacks `makeStack` makes: tests settle pushes at once.
   init(
-    tabs: [KarnakTab], startTab: String?, revision: String? = nil, signedIn: @escaping () -> Bool,
+    tabs: [KarnakTab], startTab: String?, revision: String? = nil,
     makeStack: () -> KarnakHostStack
   ) {
     self.tabs = tabs
@@ -89,9 +94,7 @@ public final class KarnakTabStore: ObservableObject {
     stacks = Dictionary(
       uniqueKeysWithValues: tabs.filter { !$0.isAction }.map { ($0.id, makeStack()) })
     let port = StackPort()
-    model = KarnakTabs(
-      tabs: tabs, stacks: port, startTab: start, backAtRoot: .stayInTab,
-      signedIn: { KotlinBoolean(bool: signedIn()) })
+    model = KarnakTabs(tabs: tabs, stacks: port, startTab: start, backAtRoot: .stayInTab)
     port.store = self
   }
 
@@ -101,8 +104,7 @@ public final class KarnakTabStore: ObservableObject {
     Binding(get: { self.selected }, set: { self.tapped($0) })
   }
 
-  /// The user selected `tab`. Returns what changed; the store calls ``onScrollToTop`` and
-  /// ``onSignInNeeded`` itself. An action item runs its `open_screen` on the selected tab and changes nothing.
+  /// The user selected `tab`. Returns what changed; the store calls ``onScrollToTop`` itself. An action item runs its `open_screen` on the selected tab and changes nothing.
   @discardableResult
   public func select(_ tab: String) -> KarnakTabChange {
     if let item = tabs.first(where: { $0.id == tab }), item.isAction {
@@ -114,26 +116,23 @@ public final class KarnakTabStore: ObservableObject {
       objectWillChange.send()
     } else if change == .scrollToTop {
       onScrollToTop(tab)
-    } else if change == .signInNeeded {
-      // `selected` did not change, so nothing was published: a `TabView` that already shows the
-      // tapped tab is told to read the selection again and go back to the selected one.
-      objectWillChange.send()
-      onSignInNeeded(tab)
     }
     return change
   }
 
   /// A link whose pattern names `tab` is about to open: the tab shows popped to its root
-  /// (`KarnakTabs.openLink`).
+  /// (`KarnakTabs.openLink`), the app's path of it included (``SwiftUI/View/karnakTab(_:of:path:)``).
   @discardableResult
   public func openLink(_ tab: String) -> KarnakTabChange {
-    model.openLink(tab: tab)
+    let change = model.openLink(tab: tab)
+    popUnseen(tab)
+    return change
   }
 
-  /// The user signed out: every sign-in tab pops to its root and a selected one leaves for the
-  /// start tab.
-  public func signedOut() {
-    model.signedOut()
+  /// Pops `tab` to its root when it has not appeared, whatever its depth: the store can't see a path the app restored
+  /// for it, so that path is emptied when the tab appears.
+  private func popUnseen(_ tab: String) {
+    if hosts[tab] == nil, stacks[tab] != nil { pop(tab, toRoot: true) }
   }
 
   /// Shows the first tab: `saved`, a ``selected`` of an earlier scene, when the app has it and may
@@ -170,47 +169,110 @@ public final class KarnakTabStore: ObservableObject {
     stacks[tab]
   }
 
-  /// The tab's view appeared under a host: its stack reports to that host's opener, and links
-  /// opened on any tab use that host's hooks.
-  func attach(_ opener: (any HostStackOpener)?, callbacks: KarnakHostCallbacks, to tab: String) {
+  /// The tab's view appeared under a host: its stack reports to that host's opener, and what opens on that tab (a
+  /// link, an action item while it is selected) runs on that host's hooks, with `path` as the tab's place when the app
+  /// owns it. Requests that waited for the tab are delivered now.
+  func attach(
+    _ opener: (any HostStackOpener)?, callbacks: KarnakHostCallbacks, path: TabPath? = nil,
+    to tab: String
+  ) {
     guard let opener, let stack = stacks[tab] else { return }
-    self.opener = opener
-    self.callbacks = callbacks
+    hosts[tab] = TabHost(opener: opener, callbacks: callbacks, path: path)
+    lastTab = tab
     module = (opener as? KarnakSwiftClient)?.flowModule
-    for (id, bridge) in bridges { bridge.update(navigation(of: id, callbacks)) }
+    shell.surface = { [weak client = opener as? KarnakSwiftClient] in
+      client?.overlaySurface(dark: $0)
+    }
     stack.entryRemoved = { [weak opener] in opener?.entryRemoved($0) }
     stack.report = { [weak opener] in opener?.report($0) }
     // At a tab's root there is nowhere to go back to.
     stack.leave = {}
     if tab == selected { opener.stackRegistry.register(stack) }
+    deliverWaiting(tab)
   }
 
-  /// The host's hooks for a link that opens on `tab`, with that tab's stack as the navigation;
-  /// nil for a tab the app does not have, one a signed-out user may not see, or before any tab
-  /// appeared under a host.
+  /// The view of ``KarnakTabView`` appeared under a host whose hooks every tab shares: the tabs that have not appeared
+  /// take them now, so what opens on such a tab goes on its host stack at once. The selected tab's comes last.
+  func attachShared(_ opener: (any HostStackOpener)?, callbacks: KarnakHostCallbacks) {
+    let unseen = tabs.filter { !$0.isAction && hosts[$0.id] == nil }.map(\.id)
+    for tab in unseen.filter({ $0 != selected }) + unseen.filter({ $0 == selected }) {
+      attach(opener, callbacks: callbacks, to: tab)
+    }
+  }
+
+  /// The hooks for a link that opens on `tab`, with that tab's place as the navigation; nil for a tab the app does not
+  /// have, or before any tab appeared under a host.
   func hostActions(forLink tab: String) -> HostActions? {
-    guard stacks[tab] != nil, callbacks != nil, openLink(tab) != .signInNeeded else { return nil }
+    guard stacks[tab] != nil, lastTab != nil else { return nil }
+    openLink(tab)
     return bridge(of: tab)
   }
 
-  /// The host's hooks with `tab`'s stack as the navigation, nil before any tab appeared under a host.
+  /// How many entries are above `tab`'s root: the tab's host stack's, plus the app's path's when it owns one (a
+  /// `karnak.open(_:params:)` still pushes on the host stack, above the path), plus the screens waiting to open on a
+  /// tab that has not appeared, so a second link pops them as it pops a shown tab.
+  func depth(_ tab: String) -> Int {
+    (stacks[tab]?.entries.count ?? 0) + (hosts[tab]?.path?.depth() ?? 0)
+      + (waiting[tab]?.openedEntries.count ?? 0)
+  }
+
+  /// Pops `tab` by one, or to its root: the host stack's top entry first, then the app's path when it owns one. A tab
+  /// that has not appeared drops what waits for it, and a path the app gives it when it appears is emptied.
+  func pop(_ tab: String, toRoot: Bool) {
+    let request: KarnakSwiftUI.KarnakNavigation = .back(screen: nil, root: toRoot, before: nil)
+    if hosts[tab] == nil, toRoot {
+      for entry in waiting[tab]?.openedEntries ?? [] { opener?.entryRemoved(entry) }
+      waiting[tab] = PendingTab(poppedToRoot: true)
+    }
+    let stacked = stacks[tab]?.entries.isEmpty == false
+    if stacked { stacks[tab]?.perform(request) }
+    guard let path = hosts[tab]?.path, toRoot || !stacked else { return }
+    path.perform(request)
+  }
+
+  /// The hooks with `tab`'s place as the navigation, nil before any tab appeared under a host.
   private func bridge(of tab: String) -> HostActions? {
-    guard stacks[tab] != nil, let callbacks else { return nil }
+    guard stacks[tab] != nil, let callbacks = callbacks(of: tab) else { return nil }
     let bridge =
       bridges[tab]
       ?? HostActionBridge { [weak self] in self?.opener?.report($0) }
     bridges[tab] = bridge
-    bridge.update(navigation(of: tab, callbacks))
+    bridge.update(callbacks)
     return bridge.hostActions
   }
 
-  private func navigation(of tab: String, _ callbacks: KarnakHostCallbacks) -> KarnakHostCallbacks {
-    callbacks.withDefault(navigation: { [weak self] in self?.stacks[tab]?.perform($0) })
+  /// The hooks of the host `tab` appeared under, its own navigation winning over the tab's place (the app's path when
+  /// it gave one, else the tab's host stack). Until it appears, those of the tab that appeared last, whose navigation
+  /// waits for `tab` instead.
+  private func callbacks(of tab: String) -> KarnakHostCallbacks? {
+    if let host = hosts[tab] {
+      if let path = host.path { return host.callbacks.withDefault(navigation: path.perform) }
+      let stack = stacks[tab]
+      return host.callbacks.withDefault(navigation: { [weak stack] in stack?.perform($0) })
+    }
+    guard let last = lastTab.flatMap({ hosts[$0] }) else { return nil }
+    var held = last.callbacks
+    held.onOpenScreen = nil
+    held.onNavigation = { [weak self] in
+      self?.waiting[tab, default: PendingTab()].requests.append($0)
+    }
+    return held
+  }
+
+  /// Delivers what waited for `tab`, which just appeared: the pop to its root first, then the requests in order.
+  private func deliverWaiting(_ tab: String) {
+    let held = waiting.removeValue(forKey: tab)
+    if held?.poppedToRoot == true {
+      hosts[tab]?.path?.perform(.back(screen: nil, root: true, before: nil))
+    }
+    guard let bridge = bridges[tab], let callbacks = callbacks(of: tab) else { return }
+    bridge.update(callbacks)
+    held?.requests.forEach(bridge.perform)
   }
 
   fileprivate func show(_ tab: String) {
     selected = tab
-    if let stack = stacks[tab] { opener?.stackRegistry.register(stack) }
+    if let stack = stacks[tab] { (hosts[tab]?.opener ?? opener)?.stackRegistry.register(stack) }
   }
 }
 
@@ -218,16 +280,10 @@ public final class KarnakTabStore: ObservableObject {
 /// tab work hops to the main thread, which never waits on a link (`handleLink` is async).
 /// Unchecked Sendable: its state is set when it is made, and the store it reaches is read on the main thread.
 private final class TabLinks: NSObject, LinkTabs, @unchecked Sendable {
-  private let signInTabs: Set<String>
   private weak var store: KarnakTabStore?
 
   @MainActor init(store: KarnakTabStore) {
-    signInTabs = Set(store.tabs.filter(\.requiresSignIn).map(\.id))
     self.store = store
-  }
-
-  func requiresSignIn(tab: String) -> Bool {
-    signInTabs.contains(tab)
   }
 
   func open(tab: String) -> HostActions? {
@@ -250,7 +306,7 @@ private final class StackPort: NSObject, KarnakTabStacks, @unchecked Sendable {
   weak var store: KarnakTabStore?
 
   func depth(tab: String) -> Int32 {
-    MainActor.assumeIsolated { Int32(store?.stack(tab)?.entries.count ?? 0) }
+    MainActor.assumeIsolated { Int32(store?.depth(tab) ?? 0) }
   }
 
   func show(tab: String) {
@@ -258,15 +314,11 @@ private final class StackPort: NSObject, KarnakTabStacks, @unchecked Sendable {
   }
 
   func popToRoot(tab: String) {
-    MainActor.assumeIsolated {
-      store?.stack(tab)?.perform(.back(screen: nil, root: true, before: nil))
-    }
+    MainActor.assumeIsolated { store?.pop(tab, toRoot: true) }
   }
 
   func pop(tab: String) {
-    MainActor.assumeIsolated {
-      store?.stack(tab)?.perform(.back(screen: nil, root: false, before: nil))
-    }
+    MainActor.assumeIsolated { store?.pop(tab, toRoot: false) }
   }
 }
 

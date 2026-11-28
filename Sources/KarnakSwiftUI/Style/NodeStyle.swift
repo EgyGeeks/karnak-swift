@@ -79,9 +79,9 @@ private struct NodeBox: ViewModifier {
   let content: BoxContent
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  /// The move of a fixed height: none with Reduce Motion on, where the height snaps.
-  private var heightAnimation: Animation? {
-    reduceMotion ? nil : layout.transition(of: "layout.height")?.animation
+  /// How `field` moves to a new value (``BoxMotionField``).
+  private func animation(of field: BoxMotionField) -> Animation? {
+    layout.animation(of: field, reduceMotion: reduceMotion)
   }
 
   /// One axis of the box: its own sizing, or the whole proposal for a root that fills the host.
@@ -97,23 +97,50 @@ private struct NodeBox: ViewModifier {
 
   func body(content primitive: Content) -> some View {
     let shape = NodeShape(radius: points(dp: layout.radius))
-    NodeFrameLayout(
-      width: axis(.horizontal), height: axis(.vertical),
-      position: contentPosition, content: content
-    ) {
-      primitive.padding(edgeInsets(layout.padding))
-    }
-    .animation(heightAnimation, value: axis(.vertical).mode)
-    .modifier(NodeClip(shape: shape, clips: layout.clip))
-    .background {
-      NodeBackground(
-        shape: shape, fill: layout.background.map(resolvedColor), paint: layout.backgroundTarget,
-        transition: layout.transition(of: "style.background"), shadows: layout.shadows)
-    }
-    .overlay {
-      if let border = layout.border { NodeBorder(shape: shape, border: border) }
-    }
-    .opacity(Double(layout.alpha))
+    let frame = NodeFrameLayout(
+      width: axis(.horizontal), height: axis(.vertical), position: contentPosition, content: content
+    )
+    primitive.padding(edgeInsets(layout.padding))
+      .modifier(
+        MovingFrame(
+          frame: frame, widthAnimation: animation(of: .width),
+          heightAnimation: animation(of: .height))
+      )
+      .modifier(NodeClip(shape: shape, clips: layout.clip))
+      .background {
+        NodeBackground(
+          shape: shape, fill: layout.background.map(resolvedColor), paint: layout.backgroundTarget,
+          transition: layout.transition(of: "style.background"), shadows: layout.shadows)
+      }
+      .overlay {
+        if let border = layout.border { NodeBorder(shape: shape, border: border) }
+      }
+      .modifier(FieldMotion(value: shape.radius, animation: animation(of: .radius)))
+      .loopEffect(layout.loopEffect, shape: shape)
+      .modifier(AlphaMotion(alpha: Double(layout.alpha), animation: animation(of: .alpha)))
+  }
+}
+
+/// Moves the views it wraps with `animation` when `value` changes, as a `motion` transition of one box field
+/// (`docs/renderer-contract.md`, Motion); a field without one applies at once.
+private struct FieldMotion<Value: Equatable>: ViewModifier {
+  let value: Value
+  let animation: Animation?
+
+  func body(content: Content) -> some View {
+    content.transaction(value: value) { $0.move(with: animation) }
+  }
+}
+
+/// The node's alpha, moved by its `style.alpha` transition. The animation reaches the opacity alone, so the content's
+/// own changes in the same tree draw at once.
+private struct AlphaMotion: ViewModifier {
+  let alpha: Double
+  let animation: Animation?
+
+  func body(content: Content) -> some View {
+    // One branch keeps the content's identity when a new tree adds or drops the transition; nil applies at once.
+    content.animation(animation) { $0.opacity(alpha) }
   }
 }
 

@@ -125,6 +125,7 @@ extension View {
     .environment(\.karnakScreenStates, client.screenStates)
     .environment(\.karnakComponents, client.components)
     .modifier(KarnakResourcesHost(core: client.resourcesCore))
+    .modifier(KarnakThemeHost(client: client))
     .modifier(KarnakScreenEventsHost(client: client, onScreen: onScreen))
   }
 

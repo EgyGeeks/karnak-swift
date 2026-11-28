@@ -60,9 +60,7 @@ struct FloatingTransitions {
     if plan.slides { result = result.combined(with: .move(edge: slideEdge)) }
     if plan.scales { result = result.combined(with: .scale(scale: 0.8, anchor: scaleAnchor)) }
     if plan.fades { result = result.combined(with: .opacity) }
-    let animation = Animation.timingCurve(
-      easing.x1, easing.y1, easing.x2, easing.y2, duration: Double(plan.millis) / 1000)
-    return result.animation(animation)
+    return result.animation(easingAnimation(easing, seconds: Double(plan.millis) / 1000))
   }
 
   /// The edge a slide comes from: the view's own edge, or the anchor's side for an anchored view.

@@ -7,6 +7,9 @@ enum ScreenPhase {
   case loading
   case content(ResolvedScreen)
   case failed(KarnakScreenError)
+  /// The screen needs a signed-in person and the app says nobody is: the sign-in placeholder shows. `reason` is the
+  /// screen's `authReason`.
+  case locked(reason: String?)
 }
 
 /// Follows one open screen for its view: opens it when the view appears and publishes its states.
@@ -21,7 +24,8 @@ enum ScreenPhase {
 @Observable
 @MainActor
 final class ScreenModel {
-  /// What to draw. It keeps the last content while the same screen loads again.
+  /// What to draw. Every loading the engine reports takes the content away, and so does closing the screen it owns: a
+  /// screen opened again draws what its new instance reports, never the closed one's content.
   private(set) var phase = ScreenPhase.loading
 
   /// The effects the open screen asks to present.
@@ -114,7 +118,6 @@ final class ScreenModel {
     environment: ScreenEnvironment, entry: ScreenEntry? = nil, reportsRemoval: Bool = false
   ) {
     guard session == nil || startedKey != key else { return }
-    let sameScreen = startedKey == key
     stop()
     startedKey = key
     screenId = key.screenId
@@ -124,7 +127,6 @@ final class ScreenModel {
     self.entry = entry
     self.reportsRemoval = reportsRemoval
     bridge.ownEntryId = reportsRemoval ? entry?.id : nil
-    if !sameScreen { phase = .loading }
     if let id = entry?.id, opener?.isOrphanedFlowEntry(id) == true {
       return removeOrphan(id)
     }
@@ -248,7 +250,8 @@ final class ScreenModel {
     effects.sheet?.model.updateHostCallbacks(callbacks)
   }
 
-  /// Closes the open screen, if any. The last phase stays for a view that appears again. A
+  /// Closes the open screen, if any. A screen the model owns goes back to loading, so a view that appears again never
+  /// draws the closed instance's content (it may be another account's, #3779) before the new one reports. A
   /// screen that reports its removal tells the SDK it is gone, so a receiver hears `cancelled`.
   func stop() {
     stopObserving?()
@@ -260,6 +263,7 @@ final class ScreenModel {
     gate.reset()
     stopObserving = nil
     stopObservingEffects = nil
+    if ownsSession, session != nil { phase = .loading }
     session = nil
     closer.action = nil
     if reportsRemoval, let id = entry?.id { opener?.entryRemoved(id) }
@@ -302,16 +306,6 @@ final class ScreenModel {
     effects.restoreDetail(stack, forms: screens.map(\.forms))
   }
 
-  /// Loads the screen again, from the error UI's retry.
-  func retry() {
-    if case .failed = phase { phase = .loading }
-    if let session {
-      session.refresh()
-    } else if let startedKey {
-      start(startedKey, opener: opener, params: params, environment: environment)
-    }
-  }
-
   /// Resolves the content again when the color scheme or layout direction changed.
   func setEnvironment(_ environment: ScreenEnvironment) {
     guard !environment.isEqual(self.environment) else { return }
@@ -335,14 +329,20 @@ final class ScreenModel {
       gate.reset()
       phase = .failed(KarnakScreenError(failed.error))
       drawReady()
+    case let locked as ScreenStateLocked:
+      gate.reset()
+      phase = .locked(reason: locked.reason)
+      drawReady()
     case is ScreenStateLoading:
-      if case .content = phase { return }
+      // Every loading means the engine has nothing it may show, so the content goes, as on Compose and the web: after
+      // an account switch (ADR 0061, D5) or while a newly gated source loads; a refresh with content never sends one.
+      gate.reset()
       phase = .loading
     default: break
     }
   }
 
-  /// A ready state is drawn (`ScreenState.ready`): content the engine marked ready, or a failure.
+  /// A ready state is drawn (`ScreenState.ready`): content the engine marked ready, a lock, or a failure.
   private func drawReady() {
     drewReady = true
     tellReady()
@@ -358,6 +358,24 @@ final class ScreenModel {
   private func show(_ screen: ResolvedScreen) {
     phase = .content(screen)
     effects.setGeneration(screen.generation)
+  }
+}
+
+// What the state views ask of the screen: a retry from the error UI and a sign-in from the placeholder.
+extension ScreenModel {
+  /// Loads the screen again, from the error UI's retry.
+  func retry() {
+    if case .failed = phase { phase = .loading }
+    if let session {
+      session.refresh()
+    } else if let startedKey {
+      start(startedKey, opener: opener, params: params, environment: environment)
+    }
+  }
+
+  /// Asks the app to sign in again, from the sign-in placeholder's button.
+  func askSignIn() {
+    session?.askSignIn()
   }
 }
 

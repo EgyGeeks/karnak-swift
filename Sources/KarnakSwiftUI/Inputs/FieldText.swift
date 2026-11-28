@@ -53,7 +53,8 @@ struct CaretMove: Equatable {
   let edit: Int
 }
 
-/// A masked field's one-line `TextField`, whose caret goes where the mask put it after it rewrote the text. The
+/// A `TextField` whose caret goes where the mask put it after it rewrote the text, or where the person typed after a
+/// refused edit (``TextSync/caretAfterRefusal(typed:restored:typedCaret:)``). The
 /// selection binding is iOS 18's; below it the caret is where UIKit leaves it after a replaced text, at the end.
 ///
 /// `typedCaret` is the caret the field had when the person last changed the text: SwiftUI moves the selection before
@@ -63,16 +64,26 @@ struct CaretTextField: View {
   @Binding var text: String
   @Binding var typedCaret: Int?
   let caret: CaretMove?
+  var axis: Axis?
   @State private var selection: TextSelection?
 
   var body: some View {
-    TextField("", text: $text, selection: $selection)
+    field
       .onChange(of: selection) { _, selection in typedCaret = selection.flatMap(caretOffset) }
       .onChange(of: caret) { _, move in
         guard let move else { return }
         let offset = min(max(0, move.offset), text.utf16.count)
         selection = TextSelection(insertionPoint: String.Index(utf16Offset: offset, in: text))
       }
+  }
+
+  @ViewBuilder
+  private var field: some View {
+    if let axis {
+      TextField("", text: $text, selection: $selection, axis: axis)
+    } else {
+      TextField("", text: $text, selection: $selection)
+    }
   }
 
   /// The end of the selection, the caret of an edit, as a UTF-16 offset in the text.

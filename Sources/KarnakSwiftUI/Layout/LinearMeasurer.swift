@@ -66,10 +66,11 @@ struct LinearMeasurer {
       size: axis.size(main: mainExtent(content: content), cross: crossExtent))
   }
 
-  /// Unweighted children are measured in order against the main-axis space that
-  /// spacing and the earlier unweighted children leave, as Compose `Row` does and
-  /// CSS flex items shrink, so wrapping content fits instead of being offered the
-  /// whole container. Bounds and touch targets apply afterwards, so minimums
+  /// Unweighted children are measured in order. In a row, and a `fill` child of a column, against the main-axis
+  /// space that spacing and the earlier unweighted children leave, as Compose `Row` does and CSS flex items shrink,
+  /// so wrapping content fits instead of being offered the whole container. Any other child of a column is offered
+  /// the column's whole bounded height, so it keeps its content height and overflows past the end edge instead of
+  /// being squeezed (`docs/components.md`, Overflow). Bounds and touch targets apply afterwards, so minimums
   /// still overflow. Weighted children are measured again at their allocation.
   private func naturalSizes() -> [CGSize] {
     var remaining = main.map { $0 - totalSpacing }
@@ -79,11 +80,17 @@ struct LinearMeasurer {
         sizes.append(naturalSize(index, main: main))
         continue
       }
-      let size = naturalSize(index, main: max(0, available))
+      let size = naturalSize(index, main: offered(index, remaining: available))
       remaining = available - axis.bounds(inputs[index]).occupied(axis.main(size))
       sizes.append(size)
     }
     return sizes
+  }
+
+  /// The main-axis space an unweighted child is offered when `remaining` is left after its earlier siblings.
+  private func offered(_ index: Int, remaining: CGFloat) -> CGFloat? {
+    if axis == .vertical && !inputs[index].fillsHeight { return main }
+    return max(0, remaining)
   }
 
   /// Measures once to learn the cross size, then again with that size clamped to

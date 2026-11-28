@@ -16,8 +16,9 @@ public struct KarnakAuthProfile: Sendable {
   /// The request headers, such as the person's token, computed for every request off the main thread and only after
   /// the destination was validated.
   public var headerProvider: (@Sendable () -> [String: String])?
-  /// What a `401` does, as ``KarnakHttpConnection/onUnauthorized``: one run at a time for this profile.
-  public var onUnauthorized: (@Sendable () async -> Bool)?
+  /// What a `401` does, as ``KarnakHttpConnection/refreshToken``: one run at a time for this profile. `nil` uses the
+  /// client's ``KarnakConfiguration/refreshToken``.
+  public var refreshToken: (@Sendable () async -> Bool)?
 
   public init(name: String, hosts: [String], allowedPrefixes: [String]) {
     self.name = name
@@ -34,7 +35,7 @@ public struct KarnakAuthProfile: Sendable {
 /// var remote = KarnakRemoteConnections(hosts: ["api.open-meteo.com"])
 /// var shop = KarnakAuthProfile(name: "shopper", hosts: ["api.shop.example.com"], allowedPrefixes: ["/v1"])
 /// shop.headerProvider = { ["Authorization": "Bearer \(session.token)"] }
-/// shop.onUnauthorized = { await session.refresh() }
+/// shop.refreshToken = { await session.refresh() }
 /// remote.authProfiles = [shop]
 /// configuration.modules = [KarnakHttpConnections([], remote: remote)]
 /// ```
@@ -91,22 +92,8 @@ extension KarnakAuthProfile {
     kotlin.hosts = hosts
     kotlin.allowedPrefixes = allowedPrefixes
     headerProvider.map { provider in kotlin.addHeaderProvider(provider: provider) }
-    onUnauthorized.map { hook in kotlin.setOnUnauthorized(hook: unauthorizedHook(hook)) }
+    refreshToken.map { hook in kotlin.setRefreshToken(hook: refreshTokenBridge(hook)) }
     return kotlin
-  }
-}
-
-/// `hook` as the Kotlin face takes it: run in a task, its answer passed to the completion once.
-func unauthorizedHook(
-  _ hook: @escaping @Sendable () async -> Bool
-) -> (@escaping (KotlinBoolean) -> KotlinUnit) -> Void {
-  { completion in
-    // The Kotlin completion is safe to call from any thread, once.
-    nonisolated(unsafe) let completion = completion
-    Task {
-      let renewed = await hook()
-      _ = completion(KotlinBoolean(bool: renewed))
-    }
   }
 }
 

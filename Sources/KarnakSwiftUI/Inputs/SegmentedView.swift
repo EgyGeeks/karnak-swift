@@ -8,7 +8,8 @@ import SwiftUI
 /// ([ResolvedSegmented.control]) of segments sharing its width, each its icon then its label in its own interaction
 /// styles, read by VoiceOver as buttons in one container, the selected one as selected. Picking an enabled segment
 /// sends its value and takes focus from the other inputs; a disabled option, a read-only control, or the segment
-/// already selected sends nothing, and the control shows the engine's selection again.
+/// already selected sends nothing, and the control shows the engine's selection again. While its options reload they
+/// are drawn dimmed and a pick sends nothing; its notice or options error shows under them (``ChoiceStatus``).
 struct SegmentedView: View {
   let control: ResolvedSegmented
   let placement: ChildPlacement
@@ -16,17 +17,23 @@ struct SegmentedView: View {
   @Environment(\.karnakInputFocus) private var focus
 
   var body: some View {
+    let status = ChoiceStatus(control)
     InputFrame(input: control, placement: placement, label: control.label, support: control.error) {
-      Group {
-        if control.options.contains(where: { $0.icon != nil }) {
-          track
-        } else {
-          picker.inputAccessibility(control)
+      VStack(alignment: .leading, spacing: 0) {
+        Group {
+          if control.options.contains(where: { $0.icon != nil }) {
+            track
+          } else {
+            picker.inputAccessibility(control)
+          }
         }
+        .disabled(!control.enabled)
+        .busyOptions(status.busy)
+        .frame(maxWidth: placement.spans(control) ? .infinity : nil)
+        ChoiceStatusView(status: status)
       }
-      .disabled(!control.enabled)
-      .frame(maxWidth: placement.spans(control) ? .infinity : nil)
     }
+    .postsAnnouncement(status.announcement)
   }
 
   private var picker: some View {
@@ -57,7 +64,7 @@ struct SegmentedView: View {
 
   private func pick(_ value: String) {
     focus.moved(to: control.key.value)
-    guard control.acceptsEdits, value != control.selected,
+    guard control.acceptsEdits, !control.busy, value != control.selected,
       control.options.first(where: { $0.value == value })?.enabled == true
     else { return }
     inputs.send(.valueChange(control.key, value))

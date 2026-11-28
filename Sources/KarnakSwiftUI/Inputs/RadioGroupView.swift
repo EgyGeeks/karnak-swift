@@ -6,6 +6,8 @@ import SwiftUI
 /// a button, the indicator circle (with its dot while selected) then the label, 12 dp apart, and is the option's touch
 /// target; VoiceOver reads the selected one as selected. Picking an enabled option sends its value, and takes focus
 /// from the other inputs. Focus moving between options sends nothing: the group reports focus entering and leaving it.
+/// While its options reload they are drawn dimmed and a pick sends nothing; its notice or options error shows under
+/// them, in the same container (``ChoiceStatus``).
 struct RadioGroupView: View {
   let group: ResolvedRadioGroup
   let placement: ChildPlacement
@@ -15,12 +17,18 @@ struct RadioGroupView: View {
 
   var body: some View {
     let drawn = restyled(group, for: focusedOption != nil ? [.focused] : [])
+    let status = ChoiceStatus(drawn)
     InputFrame(input: drawn, placement: placement, label: drawn.label, support: drawn.error) {
-      options(drawn)
-        .partBox(drawn.control)
-        .accessibilityElement(children: .contain)
-        .inputAccessibility(drawn)
+      VStack(alignment: .leading, spacing: 0) {
+        options(drawn)
+          .busyOptions(status.busy)
+          .partBox(drawn.control)
+        ChoiceStatusView(status: status)
+      }
+      .accessibilityElement(children: .contain)
+      .inputAccessibility(drawn)
     }
+    .postsAnnouncement(status.announcement)
     .onChange(of: focusedOption != nil) { _, isFocused in
       inputs.send(.focusChange(group.key, isFocused))
       if isFocused { focus.moved(to: group.key.value) }
@@ -56,7 +64,7 @@ struct RadioGroupView: View {
 
   private func pick(_ option: ResolvedOption) {
     focus.moved(to: group.key.value)
-    guard group.acceptsEdits, option.enabled, !option.selected else { return }
+    guard group.acceptsEdits, !group.busy, option.enabled, !option.selected else { return }
     inputs.send(.valueChange(group.key, option.value))
   }
 }

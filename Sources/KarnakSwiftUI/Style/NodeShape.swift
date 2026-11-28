@@ -8,6 +8,13 @@ struct NodeShape: InsettableShape {
   /// How far the shape is inset from its frame; negative values grow it, as a shadow's spread.
   var inset: CGFloat = 0
 
+  /// The radius, which SwiftUI interpolates while a `style.radius` transition runs (`docs/renderer-contract.md`,
+  /// Motion).
+  var animatableData: CGFloat {
+    get { radius }
+    set { radius = newValue }
+  }
+
   func path(in rect: CGRect) -> Path {
     let box = rect.insetBy(dx: inset, dy: inset)
     guard box.width > 0, box.height > 0 else { return Path() }

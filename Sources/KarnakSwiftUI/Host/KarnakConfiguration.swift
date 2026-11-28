@@ -47,6 +47,13 @@ public struct KarnakConfiguration {
   /// request gets a final `401`. Show the app's sign-in, then call `resume()` (the action runs once) or `cancel()`.
   /// `nil`, the default, cancels every such action.
   public var onSignInRequired: (@MainActor @Sendable (KarnakSignInRequest) -> Void)?
+  /// The app's one refresh of the person's credentials (`docs/integration.md`, Tokens and refresh): get new ones,
+  /// store them where the header providers read them, and return whether you got them. Every credentialed HTTP
+  /// connection and auth profile of `KarnakDataHttp` that sets no `refreshToken` of its own uses it, one run at a
+  /// time across all of them, so a refresh token that rotates is never spent twice. Each request waits for it at most
+  /// until its own deadline. Return `false` at once when there is nothing to refresh, such as a guest. A failed
+  /// refresh never signs the person out: call `setSession` yourself. `nil`, the default, sets none.
+  public var refreshToken: (@Sendable () async -> Bool)?
   /// The folder in the app bundle that holds the bundled resources snapshot `karnak resources pull`
   /// wrote (`manifest.json`, `strings/<locale>.json`, `theme.json`): the offline copy of the
   /// strings and colors that ``KarnakSwiftClient/resources`` reads on first launch and without a

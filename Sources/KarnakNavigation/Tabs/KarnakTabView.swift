@@ -25,7 +25,7 @@ import SwiftUI
 /// server label and theme icon (``KarnakTabLabel``), the bar takes the theme's tint, and on iOS 26 it shrinks as the
 /// content scrolls as the theme's `minimize` says. A tab's badge is the app's state: return it from `badge`.
 ///
-/// With a store made from a server's tab list (``KarnakTabStore/init(list:signedIn:)``), each tab's root is the app's
+/// With a store made from a server's tab list (``KarnakTabStore/init(list:)``), each tab's root is the app's
 /// view: draw the tab's Karnak screen, `KarnakScreen(tab.start ?? tab.id)`, for the tabs the app has no view of its
 /// own for, or leave `root` out (the themed initializer) for Karnak screens everywhere. The selection is saved with the
 /// list's revision, and a scene restored under another revision shows the start tab.
@@ -38,13 +38,14 @@ public struct KarnakTabView<Root: View, TabLabel: View>: View {
   /// The revision of the server's tab list `saved` was saved under: empty for the app's own tabs.
   @SceneStorage("karnak.tabs.revision") private var savedRevision = ""
   @Environment(\.karnakStackOpener) private var opener
+  @Environment(\.karnakHostCallbacks) private var callbacks
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.layoutDirection) private var layoutDirection
   /// Whether the tabs show their server label and theme icon, and the bar takes the theme's tint.
   private let themed: Bool
   @State private var icons = KarnakTabIcons.none
   @State private var minimize = KarnakTabBarMinimize.never
-  @State private var themeRevision: Int32 = 0
+  @State private var themeRevision = ""
 
   /// - Parameters:
   ///   - store: The tabs and their stacks; keep it in a `@StateObject` above this view.
@@ -70,7 +71,10 @@ public struct KarnakTabView<Root: View, TabLabel: View>: View {
       .modifier(ThemeTint(themed: themed, color: icons.tint))
       .modifier(MinimizeOnScroll(minimize: minimize))
       .onAppear {
-        store.restore(saved.isEmpty ? nil : saved, savedUnder: savedRevision.isEmpty ? nil : savedRevision)
+        store.restore(
+          saved.isEmpty ? nil : saved, savedUnder: savedRevision.isEmpty ? nil : savedRevision)
+        // Every tab is under the `.karnakHost` around this view: a link to a tab not shown yet opens on it at once.
+        store.attachShared(opener, callbacks: callbacks)
       }
       .onChange(of: store.selected) { _, tab in
         saved = tab
@@ -83,7 +87,7 @@ public struct KarnakTabView<Root: View, TabLabel: View>: View {
       }
       .task(id: themedClient) {
         guard themed, let client = opener as? KarnakSwiftClient else { return }
-        for await revision in client.themeRevisions() { themeRevision = revision }
+        for await theme in client.themes() { themeRevision = theme?.revision ?? "" }
       }
   }
 
@@ -224,14 +228,47 @@ extension View {
   /// Makes this view, the root of the `NavigationStack` of tab `tab`, the host stack of that tab:
   /// ``SwiftUI/View/karnakDestinations()`` on the tab's own stack, kept by `store`. For an app with
   /// its own `TabView`; ``KarnakTabView`` puts it there itself.
+  ///
+  /// What opens on the tab (a link whose pattern names it, an action item's `open_screen` while it is selected) runs
+  /// on the hooks of the `.karnakHost` around this tab's `NavigationStack`. A tab that has not appeared yet is
+  /// selected first, and its requests wait until it appears.
   public func karnakTab(_ tab: String, of store: KarnakTabStore) -> some View {
-    modifier(KarnakTabStack(tab: tab, store: store))
+    modifier(KarnakTabStack(tab: tab, store: store, path: nil))
+  }
+
+  /// ``karnakTab(_:of:)`` for a tab whose app owns its path (`NavigationStack(path: $path)` with
+  /// ``Swift/Array/performKarnakNavigation(_:navigator:rootScreen:)`` in the `onNavigation` of the
+  /// `.karnakHost` around that stack): `store` reads `path` for the tab's depth and pops it, so a tap on the
+  /// selected tab pops the path to its root before it asks for a scroll, and a link pops it as well. Every Karnak entry a pop removes is reported, so its opener hears `cancelled`. Under a
+  /// `.karnakHost` with neither `onNavigation` nor `onOpenScreen`, what the store opens on the tab (a link, an action
+  /// item) goes on `path` too.
+  /// A screen opened with `karnak.open(_:params:)` goes on the tab's host stack, above the path, and is popped first.
+  ///
+  /// ```swift
+  /// NavigationStack(path: $homePath) {
+  ///   HomeView()
+  ///     .karnakTab("home", of: tabs, path: $homePath)
+  ///     .navigationDestination(for: Route.self) { route in RouteView(route) }
+  /// }
+  /// .karnakHost(karnak, onNavigation: { homePath.performKarnakNavigation($0, navigator: karnak.navigator) })
+  /// ```
+  ///
+  /// - Parameters:
+  ///   - tab: The tab's id.
+  ///   - store: The tabs.
+  ///   - path: The tab's path, the one its `NavigationStack` is bound to.
+  public func karnakTab<Element: KarnakPathElement>(
+    _ tab: String, of store: KarnakTabStore, path: Binding<[Element]>
+  ) -> some View {
+    modifier(KarnakTabStack(tab: tab, store: store) { opener in TabPath(path, opener: opener) })
   }
 }
 
 private struct KarnakTabStack: ViewModifier {
   let tab: String
   let store: KarnakTabStore
+  /// The app's path of the tab, made with the opener its pops report to; nil when the store's host stack is the tab's.
+  let path: (@MainActor ((any HostStackOpener)?) -> TabPath)?
   @Environment(\.karnakStackOpener) private var opener
   @Environment(\.karnakHostCallbacks) private var callbacks
 
@@ -240,7 +277,7 @@ private struct KarnakTabStack: ViewModifier {
       content
         .karnakDestinations()
         .environment(\.karnakStack, KarnakStackLevel(stack: stack, depth: 0))
-        .onAppear { store.attach(opener, callbacks: callbacks, to: tab) }
+        .onAppear { store.attach(opener, callbacks: callbacks, path: path?(opener), to: tab) }
     } else {
       content
     }
